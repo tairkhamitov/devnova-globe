@@ -1,0 +1,12 @@
+html,body,#root { height:100%; margin:0; }
+.canvas-wrap { position:fixed; inset:0; z-index:0; }
+.page { position:relative; z-index:10; } /* UI поверх canvas */
+.hero, .details { height:100vh; display:flex; align-items:center; padding:3rem; }
+.hero { justify-content:space-between; }
+.hero .text { width:48%; pointer-events:auto; color:#fff; }
+.hero .spacer { width:48%; } /* место для глобуса справа */
+.pointer-none { pointer-events:none; } /* применяем к общему оверлею, включаем pointer-events only для элементов */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
