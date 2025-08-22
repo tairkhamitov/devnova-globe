@@ -4,12 +4,69 @@ import * as THREE from "three";
 import gsap from "gsap";
 import { ScrollToPlugin } from "gsap/ScrollToPlugin";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { TextPlugin } from "gsap/TextPlugin";
 import GlitchSection from "./GlitchSection";
 import FourthSection from "./FourthSection";
 
-gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
+gsap.registerPlugin(ScrollTrigger, ScrollToPlugin, TextPlugin);
 
-type Location = { title: string; country: string; city: string; lat: number; lon: number };
+type Loc = {
+  lat: number;
+  lon: number;
+  country: string;
+  city: string;
+  title: string;
+  desc: string;
+  rating: 5 | 4.5 | 4 | 3.5;
+};
+
+const olympiadLocations: Loc[] = [
+  {
+    lat: 51.5074,
+    lon: -0.1278,
+    country: "United Kingdom",
+    city: "London",
+    title: "International Geography Olympiad",
+    desc: "Represented Kazakhstan at the prestigious International Geography Olympiad, competing against top students from over 40 countries. Demonstrated exceptional knowledge in physical geography, human geography, and cartographic interpretation.",
+    rating: 5
+  },
+  {
+    lat: 40.7128,
+    lon: -74.0060,
+    country: "United States",
+    city: "New York",
+    title: "International Olympiad in Informatics",
+    desc: "Participated in the world's most prestigious programming competition for high school students. Solved complex algorithmic problems involving data structures, graph theory, and dynamic programming under time pressure.",
+    rating: 3.5
+  },
+  {
+    lat: 55.7558,
+    lon: 37.6176,
+    country: "Russia",
+    city: "Moscow",
+    title: "International Mathematical Olympiad",
+    desc: "Competed in the oldest and most prestigious international science olympiad. Tackled challenging problems in number theory, combinatorics, algebra, and geometry that test mathematical creativity and proof techniques.",
+    rating: 4.5
+  },
+  {
+    lat: 52.5200,
+    lon: 13.4050,
+    country: "Germany",
+    city: "Berlin",
+    title: "International Physics Olympiad",
+    desc: "Demonstrated mastery of advanced physics concepts including quantum mechanics, thermodynamics, and electromagnetism. Competed in both theoretical problem-solving and practical laboratory experiments.",
+    rating: 4
+  },
+  {
+    lat: 35.6762,
+    lon: 139.6503,
+    country: "Japan",
+    city: "Tokyo",
+    title: "International Chemistry Olympiad",
+    desc: "Showcased expertise in organic chemistry, inorganic chemistry, and physical chemistry. Participated in rigorous theoretical examinations and hands-on laboratory practical sessions with international peers.",
+    rating: 5
+  }
+];
 
 export default function Portfolio() {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -31,14 +88,10 @@ export default function Portfolio() {
   const inDetailsRef = useRef(false);
   const activeIndexRef = useRef<number>(0);
   const focusOnRef = useRef<(i: number) => void>(() => {});
+  const descRef = useRef<HTMLDivElement>(null);
+  const typewriterTween = useRef<gsap.core.Tween | null>(null);
 
-    // === src/Portfolio.tsx — МЕНЯЕШЬ ЗДЕСЬ СВОИ ТОЧКИ ===
-    const locations = useRef<Location[]>([
-    { title: "Informatics — Finalist",  country: "Indonesia", city: "Yogyakarta", lat: -1.7956, lon: 110.3695 },
-    { title: "Physics Olympiad — Gold", country: "Germany", city: "Hannover",  lat: 52.3759, lon: 9.7320 },
-    { title: "Math Olympiad — Silver",  country: "Kazakhstan", city: "Almaty", lat: 43.2389, lon: 76.8897 },
-    { title: "Informatics — Finalist",  country: "Indonesia", city: "Yogyakarta", lat: -7.7956, lon: 110.3695 },
-    ]).current;
+    // Use the unified olympiad locations data
 
       // refs to objects that need to be accessed from UI handlers
     const globeGroupRef = useRef<THREE.Group | null>(null);
@@ -89,17 +142,21 @@ export default function Portfolio() {
 
     // Scene / Camera / Renderer
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, mount.clientWidth / mount.clientHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 0, 6);
     
 
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' as any });
-    let targetDpr = Math.min(window.devicePixelRatio || 1, 2);
-    renderer.setPixelRatio(targetDpr);
-    renderer.setSize(mount.clientWidth, mount.clientHeight);
+    const renderer = new THREE.WebGLRenderer({ 
+      antialias: true, 
+      alpha: true, 
+      powerPreference: "high-performance" 
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.setClearColor(0x000000, 1);
-    renderer.shadowMap.enabled = false;
     mount.appendChild(renderer.domElement);
 
     // Lights
@@ -189,8 +246,8 @@ export default function Portfolio() {
     const spriteMats: THREE.SpriteMaterial[] = [];
     const sprites: THREE.Sprite[] = [];
 
-    for (let i = 0; i < locations.length; i++) {
-      const loc = locations[i];
+    for (let i = 0; i < olympiadLocations.length; i++) {
+      const loc = olympiadLocations[i];
       const v = latLonToVec3(loc.lat, loc.lon, 2.01);
 
       const m = new THREE.Mesh(markerGeo, markerMat.clone());
@@ -379,7 +436,8 @@ export default function Portfolio() {
           if (inDetailsNow !== inDetailsRef.current) {
             setInDetails(inDetailsNow);
             inDetailsRef.current = inDetailsNow;
-            isAutoRotateRef.current = !inDetailsNow;
+            // Keep auto-rotate enabled, but control it per section
+            isAutoRotateRef.current = true;
 
             if (inDetailsNow) {
               // краткая блокировка скролла при входе в details
@@ -596,7 +654,7 @@ export default function Portfolio() {
     // Focus helper — animate quaternion slerp
     let focusAnim: gsap.core.Tween | null = null;
     const focusOn = (index: number) => {
-      const loc = locations[index];
+      const loc = olympiadLocations[index];
       if (!loc) return;
       const targetQ = focusQuat(loc.lat, loc.lon);
 
@@ -644,6 +702,7 @@ export default function Portfolio() {
     // expose focusOn to outer scope via ref
     focusOnRef.current = focusOn;
 
+    // Data is already available in olympiadLocations constant
 
     // ensure hidden initially
     markers.forEach((m) => (m.visible = false));
@@ -765,7 +824,7 @@ export default function Portfolio() {
   // UI handlers — update state + refs, and trigger focus if in details
   const onPrev = () => {
     setActiveIndex((i) => {
-      const next = (i - 1 + locations.length) % locations.length;
+      const next = (i - 1 + olympiadLocations.length) % olympiadLocations.length;
       activeIndexRef.current = next;
       // Update markers and focus when in second section
       if (inSecondSection && focusOnRef.current) {
@@ -776,7 +835,7 @@ export default function Portfolio() {
   };
   const onNext = () => {
     setActiveIndex((i) => {
-      const next = (i + 1) % locations.length;
+      const next = (i + 1) % olympiadLocations.length;
       activeIndexRef.current = next;
       // Update markers and focus when in second section
       if (inSecondSection && focusOnRef.current) {
@@ -786,7 +845,71 @@ export default function Portfolio() {
     });
   };
 
-  const current = locations[activeIndex];
+  const current = olympiadLocations[activeIndex];
+
+  // Typewriter effect for descriptions
+  const typeDescription = () => {
+    if (!descRef.current) return;
+    
+    // Cancel previous tween
+    typewriterTween.current?.kill();
+    
+    // Clear text
+    descRef.current.textContent = "";
+    
+    // Start fast typing
+    const text = current.desc;
+    const dur = Math.max(0.3, text.length / 40);
+    
+    typewriterTween.current = gsap.to(descRef.current, {
+      text: { value: text },
+      duration: dur,
+      ease: "none",
+    });
+  };
+
+  // Show marker at specific index
+  const showMarkerAtIndex = (idx: number) => {
+    // This will be implemented in the Three.js section
+  };
+
+  // Effect to handle activeIndex changes in second section
+  useEffect(() => {
+    if (!inSecondSection) return;
+    
+    if (focusOnRef.current) {
+      focusOnRef.current(activeIndex);
+    }
+    
+    typeDescription();
+  }, [activeIndex, inSecondSection, current.desc]);
+
+  // Star rating component
+  const StarFull = () => (
+    <span style={{ color: '#ffd700', fontSize: '16px' }}>★</span>
+  );
+  
+  const StarHalf = () => (
+    <span style={{ color: '#ffd700', fontSize: '16px' }}>★</span>
+  );
+  
+  const StarEmpty = () => (
+    <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '16px' }}>☆</span>
+  );
+
+  const renderStars = (value: 5 | 4.5 | 4 | 3.5) => {
+    const full = Math.floor(value);
+    const half = value % 1 >= 0.5 ? 1 : 0;
+    const empty = 5 - full - half;
+    
+    return (
+      <div style={{ display: 'flex', gap: 6 }}>
+        {Array.from({ length: full }).map((_, i) => <StarFull key={'f' + i} />)}
+        {Array.from({ length: half }).map((_, i) => <StarHalf key={'h' + i} />)}
+        {Array.from({ length: empty }).map((_, i) => <StarEmpty key={'e' + i} />)}
+      </div>
+    );
+  };
 
   // UI styles - Cyberpunk panel
   const uiPanelStyle: React.CSSProperties = {
@@ -1019,228 +1142,181 @@ export default function Portfolio() {
           className="details"
           style={{
             height: "200vh",
-            display: "flex",
-            flexDirection: "row",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "4rem",
             alignItems: "center",
-            justifyContent: "flex-end",
             padding: "4rem",
             position: "relative",
+            fontFamily: "'Exo', sans-serif"
           }}
         >
-          {/* Content moved to right side */}
-          <div style={{ 
-            marginTop: "40%",
-            maxWidth: "600px", 
-            color: "#fff", 
-            textAlign: "right",
-            marginRight: "4rem",
-            zIndex: 10
-          }}>
-            <h2 style={{
-              fontSize: "3rem",
-              marginBottom: "2rem",
-              textAlign: "center",
-            }}>Olympiad Achievements</h2>
-            <p style={{ 
-              fontSize: "1.2rem",
-              lineHeight: "1.6",
-              color: "#ccc",
-              marginBottom: "3rem",
-              maxWidth: "600px",
-              margin: "0 auto 3rem auto",
-              textAlign: "center"
-            }}>
-              International competition results across multiple disciplines. 
-              Each marker represents a competition location with detailed achievements.
-            </p>
-            
-            {/* Enhanced cyberpunk panel - only shows in second section */}
-            {inSecondSection && !inFourthSection && (
-              <div style={{
-                background: "rgba(0, 0, 0, 0.36)",
-                border: "1px solid rgba(255, 255, 255, 0.3)",
-                padding: "24px",
-                maxWidth: "450px",
-                margin: "2rem 0",
-                marginLeft: "auto",
-                marginRight: "4rem",
-                animation: "panelSlideUp 0.6s ease-out",
-                boxShadow: "0 0 30px rgba(255, 255, 255, 0.1), inset 0 0 20px rgba(255, 255, 255, 0.05)",
-                position: "relative",
-                overflow: "hidden",
-                zIndex: 100,
-                pointerEvents: "auto"
-              }}>
-                {/* Cyberpunk corner accents */}
-                <div style={{
-                  position: "absolute",
-                  top: "0",
-                  left: "0",
-                  width: "20px",
-                  height: "20px",
-                  borderLeft: "2px solid rgba(255, 255, 255, 0.6)",
-                  borderTop: "2px solid rgba(255, 255, 255, 0.6)"
-                }} />
-                <div style={{
-                  position: "absolute",
-                  bottom: "0",
-                  right: "0",
-                  width: "20px",
-                  height: "20px",
-                  borderRight: "2px solid rgba(255, 255, 255, 0.6)",
-                  borderBottom: "2px solid rgba(255, 255, 255, 0.6)"
-                }} />
-                
-                <div style={{ textAlign: "left" }}>
-                  {/* Location info with smooth transitions */}
-                  <div 
-                    key={activeIndex}
-                    style={{ 
-                      marginBottom: "20px",
-                      animation: "textSlideIn 0.5s ease-out",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                      minHeight: "60px"
-                    }}
-                  >
-                    <div style={{ 
-                      fontSize: "11px", 
-                      color: "#999", 
-                      letterSpacing: "0.15em",
-                      textTransform: "uppercase",
-                      marginBottom: "8px",
-                      fontWeight: "300",
-                      fontFamily: "'Exo', sans-serif"
-                    }}>
-                      {current.country} • {current.city}
+          {/* Globe wrapper - left side */}
+          <div 
+            className="globe-wrap"
+            style={{
+              position: "relative",
+              zIndex: 0,
+              pointerEvents: "auto"
+            }}
+          />
+          
+          {/* Content - right side */}
+          <div 
+            className="details-right"
+            style={{
+              position: "relative",
+              marginTop: "15rem",
+              zIndex: 2,
+              pointerEvents: "auto",
+              color: "#fff"
+            }}
+          >
+            <h3 
+              className="details-title"
+              style={{
+                fontSize: "3.5rem",
+                marginBottom: "2rem",
+                fontWeight: "600",
+                textAlign: "center",
+                marginTop: "15rem",
+                marginLeft: "10rem",
+                marginRight: "10rem"
+              }}
+            >
+              Olympiad Achievements
+            </h3>
+
+            {inSecondSection && (
+              <>
+                <div 
+                  className="loc-panel"
+                  role="group"
+                  aria-label="location navigator"
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "16px 20px",
+                    border: "1px solid rgba(255,255,255,.18)",
+                    background: "rgba(255,255,255,.04)",
+                    borderRadius: "16px",
+                    marginBottom: "12px",
+                    width: "500px",
+                    transform: "translateX(30%)",
+                    
+                  }}
+                >
+                  <div className="loc-meta">
+                    <div 
+                      className="loc-sub"
+                      style={{
+                        color: "#9aa0a6",
+                        fontSize: "14px",
+                        marginBottom: "6px"
+                      }}
+                    >
+                      {current.country} / {current.city}
                     </div>
-                    <div style={{ 
-                      fontSize: "18px", 
-                      fontWeight: "500", 
-                      color: "#fff",
-                      textShadow: "0 0 10px rgba(255, 255, 255, 0.3)",
-                      lineHeight: "1.3",
-                      fontFamily: "'Exo', sans-serif"
-                    }}>
+                    <div 
+                      className="loc-title"
+                      style={{
+                        color: "#fff",
+                        fontWeight: "700",
+                        fontSize: "18px"
+                      }}
+                    >
                       {current.title}
                     </div>
                   </div>
-                  
-                  {/* Star Rating */}
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    marginBottom: "15px",
-                    gap: "4px"
-                  }}>
-                    {[1, 2, 3, 4, 5].map((star) => {
-                      const isIOI = current.title.includes("International Olympiad in Informatics");
-                      const rating = isIOI ? 3.5 : 5;
-                      const isFilled = star <= Math.floor(rating);
-                      const isHalf = star === Math.ceil(rating) && rating % 1 !== 0;
-                      
-                      return (
-                        <span
-                          key={star}
-                          style={{
-                            fontSize: "14px",
-                            color: isFilled || isHalf ? "#ffd700" : "rgba(255,255,255,0.3)",
-                            textShadow: isFilled || isHalf ? "0 0 8px rgba(255,215,0,0.5)" : "none",
-                            fontFamily: "'Exo', sans-serif"
-                          }}
-                        >
-                          {isHalf ? "★" : (isFilled ? "★" : "☆")}
-                        </span>
-                      );
-                    })}
-                    <span style={{
-                      fontSize: "11px",
-                      color: "#999",
-                      marginLeft: "8px",
-                      fontFamily: "'Exo', sans-serif"
-                    }}>
-                      {current.title.includes("International Olympiad in Informatics") ? "3.5/5" : "5/5"}
-                    </span>
-                  </div>
-                  
-                  {/* Navigation arrows */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div className="loc-actions" style={{ display: "flex", gap: "8px" }}>
                     <button 
+                      className="nav-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPrev();
+                      }}
+                      aria-label="previous"
                       style={{
+                        border: "1px solid #fff",
                         background: "transparent",
                         color: "#fff",
-                        border: "1px solid rgba(255,255,255,0.4)",
-                        padding: "10px 16px",
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "12px",
+                        fontSize: "18px",
                         cursor: "pointer",
-                        transition: "all 0.3s ease",
-                        fontSize: "12px",
-                        fontWeight: "500",
-                        letterSpacing: "0.1em",
-                        textTransform: "uppercase",
-                        minWidth: "80px",
-                        zIndex: 101,
+                        transition: "transform .15s ease, background-color .15s ease",
+                        pointerEvents: "auto",
                         position: "relative",
-                        fontFamily: "'Exo', sans-serif"
+                        zIndex: 3
                       }}
-                      onClick={onPrev} 
-                      aria-label="prev"
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.8)";
-                        e.currentTarget.style.boxShadow = "0 0 15px rgba(255,255,255,0.2)";
-                        e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                        e.currentTarget.style.background = "rgba(255,255,255,.08)";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.4)";
-                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.transform = "translateY(0)";
                         e.currentTarget.style.background = "transparent";
                       }}
                     >
-                      ← Prev
+                      ←
                     </button>
-                    
-                    <div style={{
-                      flex: 1,
-                      height: "1px",
-                      background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
-                      margin: "0 20px"
-                    }} />
-                    
                     <button 
+                      className="nav-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNext();
+                      }}
+                      aria-label="next"
                       style={{
+                        border: "1px solid #fff",
                         background: "transparent",
                         color: "#fff",
-                        border: "1px solid rgba(255,255,255,0.4)",
-                        padding: "10px 16px",
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "12px",
+                        fontSize: "18px",
                         cursor: "pointer",
-                        transition: "all 0.3s ease",
-                        fontSize: "12px",
-                        fontWeight: "500",
-                        letterSpacing: "0.1em",
-                        textTransform: "uppercase",
-                        minWidth: "80px",
-                        zIndex: 101,
+                        transition: "transform .15s ease, background-color .15s ease",
+                        pointerEvents: "auto",
                         position: "relative",
-                        fontFamily: "'Exo', sans-serif"
+                        zIndex: 3
                       }}
-                      onClick={onNext} 
-                      aria-label="next"
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.8)";
-                        e.currentTarget.style.boxShadow = "0 0 15px rgba(255,255,255,0.2)";
-                        e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                        e.currentTarget.style.background = "rgba(255,255,255,.08)";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.4)";
-                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.transform = "translateY(0)";
                         e.currentTarget.style.background = "transparent";
                       }}
                     >
-                      Next →
+                      →
                     </button>
                   </div>
                 </div>
-              </div>
+
+                <div 
+                  className="loc-rating"
+                  style={{ margin: "12px 0 20px", marginLeft: "10rem" }}
+                >
+                  {renderStars(current.rating)}
+                </div>
+
+                <div 
+                  className="loc-desc"
+                  ref={descRef}
+                  style={{
+                    color: "#e8eaed",
+                    fontSize: "25px",
+                    lineHeight: "1.45",
+                    minHeight: "48px",
+                    marginLeft: "10rem",
+                    marginRight: "5rem"
+                  }}
+                />
+              </>
             )}
           </div>
         </section>
@@ -1526,6 +1602,44 @@ transform: translateY(20px) scale(0.8);
 100% {
 opacity: 1;
 transform: translateY(0px) scale(1);
+}
+}
+
+/* Second section specific styles */
+.details, .details * { 
+font-family: 'Exo', sans-serif; 
+}
+
+.loc-panel {
+pointer-events: auto; 
+z-index: 3;
+}
+
+.nav-btn { 
+pointer-events: auto; 
+position: relative; 
+z-index: 3; 
+}
+
+.details-right { 
+pointer-events: auto; 
+z-index: 2; 
+}
+
+/* Mobile responsive grid */
+@media (max-width: 900px) {
+.details { 
+grid-template-columns: 1fr !important; 
+gap: 2rem !important;
+padding: 2rem !important;
+}
+.globe-wrap { 
+position: static !important; 
+transform: none !important; 
+margin: 0 auto 24px !important; 
+}
+.details-title {
+font-size: 2rem !important;
 }
 }
 `
