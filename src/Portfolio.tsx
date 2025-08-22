@@ -1221,7 +1221,7 @@ export default function Portfolio() {
                     <div 
                       className="loc-title"
                       style={{
-                        color: "#fff",
+                        color: "#FFC105",
                         fontWeight: "700",
                         fontSize: "18px"
                       }}
