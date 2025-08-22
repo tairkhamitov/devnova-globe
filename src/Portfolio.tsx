@@ -4,6 +4,8 @@ import * as THREE from "three";
 import gsap from "gsap";
 import { ScrollToPlugin } from "gsap/ScrollToPlugin";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import GlitchSection from "./GlitchSection";
+import FourthSection from "./FourthSection";
 
 gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
 
@@ -16,6 +18,14 @@ export default function Portfolio() {
   // UI state
   const [activeIndex, setActiveIndex] = useState(0);
   const [inDetails, setInDetails] = useState(false); // for React UI rendering
+  const [inFourthSection, setInFourthSection] = useState(false); // for fourth section state
+  const [inSecondSection, setInSecondSection] = useState(false); // visible state for details panel
+  
+  // Hero section animation states
+  const [typewriterText, setTypewriterText] = useState("");
+  const [showSubtitle, setShowSubtitle] = useState(false);
+  const [showSlogan, setShowSlogan] = useState(false);
+  const [glitchActive, setGlitchActive] = useState(false);
 
   // "stable" refs used inside useEffect/animation loops (avoid stale closures)
   const inDetailsRef = useRef(false);
@@ -43,6 +53,35 @@ export default function Portfolio() {
       focusOnRef.current(activeIndex);
     }
   }, [activeIndex]);
+
+  // Typewriter animation for hero section
+  useEffect(() => {
+    const fullText = "Sanzhar Khamitov";
+    let currentIndex = 0;
+    
+    const typewriterInterval = setInterval(() => {
+      if (currentIndex <= fullText.length) {
+        setTypewriterText(fullText.slice(0, currentIndex));
+        currentIndex++;
+      } else {
+        clearInterval(typewriterInterval);
+        // Trigger glitch effect
+        setTimeout(() => {
+          setGlitchActive(true);
+          setTimeout(() => {
+            setGlitchActive(false);
+            setShowSubtitle(true);
+            // Show slogan after subtitle
+            setTimeout(() => {
+              setShowSlogan(true);
+            }, 1500);
+          }, 300);
+        }, 500);
+      }
+    }, 100); // Fast typing speed
+
+    return () => clearInterval(typewriterInterval);
+  }, []);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -261,29 +300,71 @@ export default function Portfolio() {
     };
     const blinkTweens = markers.map((m) => createBlink(m));
 
-    // Drag rotation (enabled only when isAutoRotateRef.current === true)
+    // Enhanced drag rotation with hover effects
     let isDragging = false;
+    let isHovering = false;
     let prevX = 0;
+    let hoverRotationSpeed = 0.0008;
+    
     const onPointerDown = (e: PointerEvent) => {
       if (!isAutoRotateRef.current) return;
       isDragging = true;
       prevX = e.clientX;
       (e.target as Element).setPointerCapture?.((e as any).pointerId);
+      
+      // Increase rotation speed when dragging
+      hoverRotationSpeed = 0.002;
     };
+    
     const onPointerUp = (e: PointerEvent) => {
       isDragging = false;
+      hoverRotationSpeed = isHovering ? 0.0015 : 0.0008;
       try { (e.target as Element).releasePointerCapture?.((e as any).pointerId); } catch {}
     };
+    
     const onPointerMove = (e: PointerEvent) => {
       if (!isDragging) return;
       const deltaX = e.clientX - prevX;
       prevX = e.clientX;
-      globeGroup.rotation.y += deltaX * 0.005;
+      globeGroup.rotation.y += deltaX * 0.008;
+    };
+    
+    const onPointerEnter = () => {
+      if (!isAutoRotateRef.current || inSecondSection) return;
+      isHovering = true;
+      hoverRotationSpeed = 0.0015;
+      
+      // Add subtle glow effect to Earth only when not in second section
+      if (!inSecondSection) {
+        gsap.to(earthMat, {
+          emissive: new THREE.Color(0x001122),
+          duration: 0.5,
+          ease: "power2.out"
+        });
+      }
+    };
+    
+    const onPointerLeave = () => {
+      isHovering = false;
+      if (!isDragging) {
+        hoverRotationSpeed = 0.0008;
+      }
+      
+      // Remove glow effect only when not in second section
+      if (!inSecondSection) {
+        gsap.to(earthMat, {
+          emissive: new THREE.Color(0x000000),
+          duration: 0.5,
+          ease: "power2.out"
+        });
+      }
     };
 
     mount.addEventListener("pointerdown", onPointerDown);
     mount.addEventListener("pointerup", onPointerUp);
     mount.addEventListener("pointermove", onPointerMove);
+    mount.addEventListener("pointerenter", onPointerEnter);
+    mount.addEventListener("pointerleave", onPointerLeave);
 
     // ScrollTrigger timeline (hero -> details)
     const tl = gsap.timeline({
@@ -294,7 +375,7 @@ export default function Portfolio() {
         scrub: 1.2,
         anticipatePin: 1,
         onUpdate(self) {
-          const inDetailsNow = self.progress >= 0.5;
+          const inDetailsNow = self.progress >= 0.5 && self.progress < 0.75;
           if (inDetailsNow !== inDetailsRef.current) {
             setInDetails(inDetailsNow);
             inDetailsRef.current = inDetailsNow;
@@ -332,11 +413,62 @@ export default function Portfolio() {
       },
     });
 
+    // Track second section (details) visibility to reliably show the panel and markers
+    ScrollTrigger.create({
+      trigger: '.details',
+      start: 'top bottom',
+      end: 'bottom top',
+      onEnter: () => {
+        setInSecondSection(true);
+        // Reset to first location and show marker immediately
+        activeIndexRef.current = 0;
+        setActiveIndex(0);
+        setTimeout(() => {
+          markers.forEach((m, i) => (m.visible = i === 0));
+          blinkTweens.forEach((t, i) => (i === 0 ? t.play() : t.pause()));
+          if (focusOnRef.current) {
+            focusOnRef.current(0);
+          }
+        }, 100);
+      },
+      onEnterBack: () => {
+        setInSecondSection(true);
+        // Reset to first location and show marker immediately
+        activeIndexRef.current = 0;
+        setActiveIndex(0);
+        setTimeout(() => {
+          markers.forEach((m, i) => (m.visible = i === 0));
+          blinkTweens.forEach((t, i) => (i === 0 ? t.play() : t.pause()));
+          if (focusOnRef.current) {
+            focusOnRef.current(0);
+          }
+        }, 100);
+      },
+      onLeave: () => {
+        setInSecondSection(false);
+        // Hide all markers and reset when leaving second section
+        markers.forEach((m) => (m.visible = false));
+        blinkTweens.forEach((t) => t.pause());
+        // Reset to first location
+        activeIndexRef.current = 0;
+        setActiveIndex(0);
+      },
+      onLeaveBack: () => {
+        setInSecondSection(false);
+        // Hide all markers and reset when leaving second section backwards
+        markers.forEach((m) => (m.visible = false));
+        blinkTweens.forEach((t) => t.pause());
+        // Reset to first location
+        activeIndexRef.current = 0;
+        setActiveIndex(0);
+      },
+    });
+
     // removed details-specific trigger (reverted to timeline onUpdate control)
 
-    // timeline transforms (hero -> details)
-    tl.to(globeGroup.position, { x: -5.0, y: -3.1, z: 0, ease: "power1.inOut" }, 0);
-    tl.fromTo(globeGroup.scale, { x: 0.9, y: 0.9, z: 0.9 }, { x: 1.55, y: 1.55, z: 1.55, ease: "power1.inOut" }, 0);
+    // timeline transforms (hero -> details) - Earth moves to left side and scales up
+    tl.to(globeGroup.position, { x: -3, y: 0, z: 0, ease: "power2.inOut" }, 0);
+    tl.fromTo(globeGroup.scale, { x: 0.9, y: 0.9, z: 0.9 }, { x: 1.5, y: 1.5, z: 1.5, ease: "power2.inOut" }, 0);
 
     // removed third section triggers (rollback)
 
@@ -352,9 +484,93 @@ export default function Portfolio() {
           start: 'top bottom',
           end: 'top top',
           scrub: 0.8,
+          onLeave: () => gsap.to(curtainEl, { yPercent: 100, duration: 0.2, ease: 'power2.in' }),
+          onLeaveBack: () => gsap.to(curtainEl, { yPercent: 100, duration: 0.2, ease: 'power2.in' }),
+          onEnter: () => gsap.to(curtainEl, { yPercent: 0, duration: 0.2, ease: 'power2.out' }),
+          onEnterBack: () => gsap.to(curtainEl, { yPercent: 0, duration: 0.2, ease: 'power2.out' }),
         },
       });
     }
+
+    // Fourth section globe positioning with automatic camera animation
+    let cameraAnimation: (() => void) | null = null;
+    
+    ScrollTrigger.create({
+      trigger: '.fourth',
+      start: 'top center',
+      end: 'bottom top',
+      onEnter: () => {
+        setInFourthSection(true);
+        // Move globe to upper part of screen with smaller size
+        gsap.to(globeGroup.position, { x: 0, y: 1.5, z: 0, duration: 1, ease: 'power2.out' });
+        gsap.to(globeGroup.scale, { x: 0.7, y: 0.7, z: 0.7, duration: 1, ease: 'power2.out' });
+        
+        // Start automatic camera animation around Earth
+        let angle = 0;
+        const radius = 8;
+        const animateCamera = () => {
+          angle += 0.01;
+          camera.position.x = Math.cos(angle) * radius;
+          camera.position.z = Math.sin(angle) * radius;
+          camera.position.y = Math.sin(angle * 0.5) * 2;
+          camera.lookAt(globeGroup.position);
+        };
+        
+        cameraAnimation = animateCamera;
+        gsap.ticker.add(cameraAnimation);
+        
+        isAutoRotateRef.current = true;
+        // Show markers in fourth section too
+        markers.forEach((m, i) => (m.visible = i === activeIndexRef.current));
+        blinkTweens.forEach((t, i) => (i === activeIndexRef.current ? t.play() : t.pause()));
+        sprites.forEach((s) => (s.visible = false));
+        spriteMats.forEach((sm) => { if (sm) sm.opacity = 0; });
+      },
+      onEnterBack: () => {
+        setInFourthSection(true);
+        gsap.to(globeGroup.position, { x: 0, y: 1.5, z: 0, duration: 1, ease: 'power2.out' });
+        gsap.to(globeGroup.scale, { x: 0.7, y: 0.7, z: 0.7, duration: 1, ease: 'power2.out' });
+        
+        // Restart camera animation
+        if (cameraAnimation) gsap.ticker.remove(cameraAnimation);
+        let angle = 0;
+        const radius = 8;
+        const animateCamera = () => {
+          angle += 0.01;
+          camera.position.x = Math.cos(angle) * radius;
+          camera.position.z = Math.sin(angle) * radius;
+          camera.position.y = Math.sin(angle * 0.5) * 2;
+          camera.lookAt(globeGroup.position);
+        };
+        
+        cameraAnimation = animateCamera;
+        gsap.ticker.add(cameraAnimation);
+        
+        isAutoRotateRef.current = true;
+        markers.forEach((m, i) => (m.visible = i === activeIndexRef.current));
+        blinkTweens.forEach((t, i) => (i === activeIndexRef.current ? t.play() : t.pause()));
+        sprites.forEach((s) => (s.visible = false));
+        spriteMats.forEach((sm) => { if (sm) sm.opacity = 0; });
+      },
+      onLeave: () => {
+        setInFourthSection(false);
+        if (cameraAnimation) {
+          gsap.ticker.remove(cameraAnimation);
+          cameraAnimation = null;
+        }
+      },
+      onLeaveBack: () => {
+        setInFourthSection(false);
+        if (cameraAnimation) {
+          gsap.ticker.remove(cameraAnimation);
+          cameraAnimation = null;
+        }
+      }
+    });
+
+    // После инициализации всех триггеров обновляем расчёт позиций,
+    // чтобы избежать расхождений при резком скролле и первичной загрузке
+    try { ScrollTrigger.refresh(); } catch {}
 
     // focus math with offset: rotate globe so that lat/lon faces a slightly right/up direction
     // Настрой углы здесь: положительный yawDeg -> смещает маркер вправо; положительный pitchDeg -> чуть выше
@@ -447,16 +663,23 @@ export default function Portfolio() {
     };
     window.addEventListener("mousemove", onMouseMove);
 
-    // Animation loop
+    // Animation loop - ensure Earth always renders
     const animate = () => {
+      // Only rotate Earth when NOT in second section (static in details)
+      if (!inSecondSection) {
+        globeGroup.rotation.y += hoverRotationSpeed;
+      }
+      
       // avoid redundant renders when tab inactive
       if (document.hidden) {
         rafRef.current = requestAnimationFrame(animate);
         return;
       }
-      if (isAutoRotateRef.current) {
-        // rotate left slowly
-        globeGroup.rotation.y += 0.0008;
+      
+      // Add subtle star movement for parallax effect
+      if (stars) {
+        stars.rotation.y += 0.0002;
+        stars.rotation.x += 0.0001;
       }
       
 
@@ -514,9 +737,12 @@ export default function Portfolio() {
       mount.removeEventListener("pointerdown", onPointerDown);
       mount.removeEventListener("pointerup", onPointerUp);
       mount.removeEventListener("pointermove", onPointerMove);
+      mount.removeEventListener("pointerenter", onPointerEnter);
+      mount.removeEventListener("pointerleave", onPointerLeave);
 
       try {
         tl.kill();
+        if (cameraAnimation) gsap.ticker.remove(cameraAnimation);
         ScrollTrigger.getAll().forEach((s) => s.kill());
       } catch {}
       blinkTweens.forEach((t) => t.kill());
@@ -541,8 +767,10 @@ export default function Portfolio() {
     setActiveIndex((i) => {
       const next = (i - 1 + locations.length) % locations.length;
       activeIndexRef.current = next;
-      // if we're in details view, immediately focus
-      if (inDetailsRef.current && focusOnRef.current) focusOnRef.current(next);
+      // Update markers and focus when in second section
+      if (inSecondSection && focusOnRef.current) {
+        focusOnRef.current(next);
+      }
       return next;
     });
   };
@@ -550,35 +778,47 @@ export default function Portfolio() {
     setActiveIndex((i) => {
       const next = (i + 1) % locations.length;
       activeIndexRef.current = next;
-      if (inDetailsRef.current && focusOnRef.current) focusOnRef.current(next);
+      // Update markers and focus when in second section
+      if (inSecondSection && focusOnRef.current) {
+        focusOnRef.current(next);
+      }
       return next;
     });
   };
 
   const current = locations[activeIndex];
 
-  // UI styles
+  // UI styles - Cyberpunk panel
   const uiPanelStyle: React.CSSProperties = {
     position: "fixed",
-    right: 28,
-    top: "30%",
-    width: 320,
-    background: "rgba(0,0,0,0.6)",
+    left: "50%",
+    bottom: "15%",
+    transform: "translateX(-50%)",
+    width: 400,
+    background: "rgba(0,0,0,0.85)",
     color: "#fff",
-    padding: "18px",
-    borderRadius: 12,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
+    padding: "20px",
+    border: "1px solid rgba(255,255,255,0.2)",
+    borderRadius: 0,
+    clipPath: "polygon(20px 0%, 100% 0%, calc(100% - 20px) 100%, 0% 100%)",
+    backdropFilter: "blur(10px)",
+    boxShadow: "0 0 20px rgba(0,255,255,0.1), inset 0 0 20px rgba(0,0,0,0.5)",
     pointerEvents: "auto",
+    zIndex: 20,
+    animation: "panelSlideUp 0.6s ease-out"
   };
 
   const arrowBtn: React.CSSProperties = {
-    background: "rgba(255,255,255,0.06)",
+    background: "transparent",
     color: "#fff",
-    border: "none",
-    padding: "8px 12px",
-    borderRadius: 8,
+    border: "1px solid rgba(255,255,255,0.3)",
+    padding: "10px 15px",
     cursor: "pointer",
     margin: "0 8px",
+    transition: "all 0.3s ease",
+    clipPath: "polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%)",
+    fontSize: "14px",
+    fontWeight: "bold"
   };
 
   return (
@@ -591,19 +831,188 @@ export default function Portfolio() {
           style={{
             height: "100vh",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "flex-start",
+            paddingTop: "20vh",
             padding: "0 4rem",
-            gap: "2rem",
+            position: "relative",
+            background: "rgba(0, 0, 0, 0.3)",
+            backdropFilter: "blur(8px)",
+            overflow: "hidden"
           }}
         >
-          <div style={{ width: "50%", pointerEvents: "auto", color: "#fff" }}>
-            <h1 style={{ fontSize: 40, margin: 0 }}>Sanzhar Khamitov</h1>
-            <p style={{ marginTop: 12, color: "#ddd" }}>
-              Pupil at Bowdon College — serial olympiad winner, geographer.
-            </p>
+          {/* Profile photo with float animation */}
+          <div 
+            style={{
+              width: "120px",
+              height: "120px",
+              borderRadius: "50%",
+              border: "2px solid rgba(255,255,255,0.3)",
+              marginBottom: "2rem",
+              transform: "translateY(-50px)",
+              animation: "profileFloat 3s ease-in-out infinite, profileFadeIn 1s ease-out",
+              overflow: "hidden",
+              boxShadow: "0 0 20px rgba(255,255,255,0.1)",
+              marginTop: "200px",
+            }}
+          >
+            <img 
+              src="/sanzhar.jpeg" 
+              alt="Sanzhar Khamitov"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                borderRadius: "50%",
+              }}
+              onError={(e) => {
+                // Fallback if image doesn't exist
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const parent = target.parentElement;
+                if (parent) {
+                  parent.style.background = 'linear-gradient(135deg, #333, #666)';
+                  parent.style.display = 'flex';
+                  parent.style.alignItems = 'center';
+                  parent.style.justifyContent = 'center';
+                  parent.style.fontSize = '2rem';
+                  parent.style.color = '#fff';
+                  parent.textContent = 'Photo';
+                }
+              }}
+            />
           </div>
-          <div style={{ width: "50%", pointerEvents: "none" }}>{/* spacer for globe */}</div>
+          {/* Digital grid overlay */}
+          <div 
+            className="digital-grid"
+            style={{
+              position: "absolute",
+              inset: 0,
+              opacity: 0.03,
+              backgroundImage: `
+                linear-gradient(rgba(255, 255, 255, 0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.5) 1px, transparent 1px)
+              `,
+              backgroundSize: "50px 50px",
+              pointerEvents: "none",
+            }}
+          />
+          
+          {/* Scanline effect */}
+          <div 
+            className="scanline"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "2px",
+              background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
+              animation: "scanline 10s linear infinite",
+              pointerEvents: "none",
+            }}
+          />
+
+          {/* Main content */}
+          <div style={{ 
+            textAlign: "center", 
+            pointerEvents: "auto", 
+            color: "#fff",
+            fontFamily: "'Exo', sans-serif",
+            maxWidth: "800px",
+            zIndex: 10,
+            marginTop: "-5vh"
+          }}>
+            {/* Main title with typewriter and glitch */}
+            <h1 
+              className={`hero-title ${glitchActive ? 'glitch-effect' : ''}`}
+              style={{ 
+                fontSize: "4rem", 
+                margin: "0 0 2rem 0", 
+                fontWeight: "bold",
+                letterSpacing: "0.05em",
+                fontFamily: "'Exo', sans-serif",
+                position: "relative",
+                marginTop: "100px",
+              }}
+              data-text="Sanzhar Khamitov"
+            >
+              {typewriterText}<span className="cursor">|</span>
+            </h1>
+            
+            {/* Subtitle with neon glow */}
+            {showSubtitle && (
+              <p 
+                className="hero-subtitle"
+                style={{ 
+                  fontSize: "1.3rem", 
+                  color: "#aaa", 
+                  fontWeight: "300",
+                  letterSpacing: "0.1em",
+                  marginBottom: "2rem",
+                  animation: "neonGlow 2s ease-in-out infinite alternate",
+                  fontFamily: "'Exo', sans-serif"
+                }}
+              >
+                Pupil at Bowdoin College — serial olympiad winner, geographer.
+              </p>
+            )}
+            
+            {/* Slogan */}
+            {showSlogan && (
+              <p 
+                className="hero-slogan"
+                style={{ 
+                  fontSize: "1.1rem", 
+                  color: "#888", 
+                  fontWeight: "300",
+                  letterSpacing: "0.05em",
+                  opacity: 0,
+                  animation: "fadeInUp 1s ease-out 0.5s forwards",
+                  fontFamily: "'Exo', sans-serif"
+                }}
+              >
+                Exploring Earth. Competing with the world. Learning without borders.
+              </p>
+            )}
+          </div>
+          
+          {/* Scroll indicator */}
+          <div 
+            className="scroll-indicator"
+            style={{
+              position: "absolute",
+              bottom: "2rem",
+              left: "50%",
+              transform: "translateX(-50%)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.5rem",
+              color: "#fff",
+              fontFamily: "'Exo', sans-serif",
+              fontSize: "0.9rem",
+              letterSpacing: "0.1em",
+              animation: "pulse 2s ease-in-out infinite",
+              cursor: "pointer",
+              pointerEvents: "auto"
+            }}
+            onClick={() => {
+              document.querySelector('.details')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
+            <span>SCROLL</span>
+            <div 
+              style={{
+                width: "1px",
+                height: "30px",
+                background: "linear-gradient(to bottom, transparent, #fff, transparent)",
+                animation: "scrollLine 2s ease-in-out infinite"
+              }}
+            />
+            <span style={{ fontSize: "1.5rem" }}>↓</span>
+          </div>
         </section>
 
         <section
@@ -611,34 +1020,237 @@ export default function Portfolio() {
           style={{
             height: "200vh",
             display: "flex",
+            flexDirection: "row",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "flex-end",
             padding: "4rem",
+            position: "relative",
           }}
         >
-          <div style={{ maxWidth: 900, color: "#fff", textAlign: "center" }}>
-            <h2>Detailed achievements</h2>
-            <p style={{ marginTop: 12 }}>
-              Here we show detailed results, links to projects and other info. Use arrows to browse locations.
+          {/* Content moved to right side */}
+          <div style={{ 
+            marginTop: "40%",
+            maxWidth: "600px", 
+            color: "#fff", 
+            textAlign: "right",
+            marginRight: "4rem",
+            zIndex: 10
+          }}>
+            <h2 style={{
+              fontSize: "3rem",
+              marginBottom: "2rem",
+              textAlign: "center",
+            }}>Olympiad Achievements</h2>
+            <p style={{ 
+              fontSize: "1.2rem",
+              lineHeight: "1.6",
+              color: "#ccc",
+              marginBottom: "3rem",
+              maxWidth: "600px",
+              margin: "0 auto 3rem auto",
+              textAlign: "center"
+            }}>
+              International competition results across multiple disciplines. 
+              Each marker represents a competition location with detailed achievements.
             </p>
+            
+            {/* Enhanced cyberpunk panel - only shows in second section */}
+            {inSecondSection && !inFourthSection && (
+              <div style={{
+                background: "rgba(0, 0, 0, 0.36)",
+                border: "1px solid rgba(255, 255, 255, 0.3)",
+                padding: "24px",
+                maxWidth: "450px",
+                margin: "2rem 0",
+                marginLeft: "auto",
+                marginRight: "4rem",
+                animation: "panelSlideUp 0.6s ease-out",
+                boxShadow: "0 0 30px rgba(255, 255, 255, 0.1), inset 0 0 20px rgba(255, 255, 255, 0.05)",
+                position: "relative",
+                overflow: "hidden",
+                zIndex: 100,
+                pointerEvents: "auto"
+              }}>
+                {/* Cyberpunk corner accents */}
+                <div style={{
+                  position: "absolute",
+                  top: "0",
+                  left: "0",
+                  width: "20px",
+                  height: "20px",
+                  borderLeft: "2px solid rgba(255, 255, 255, 0.6)",
+                  borderTop: "2px solid rgba(255, 255, 255, 0.6)"
+                }} />
+                <div style={{
+                  position: "absolute",
+                  bottom: "0",
+                  right: "0",
+                  width: "20px",
+                  height: "20px",
+                  borderRight: "2px solid rgba(255, 255, 255, 0.6)",
+                  borderBottom: "2px solid rgba(255, 255, 255, 0.6)"
+                }} />
+                
+                <div style={{ textAlign: "left" }}>
+                  {/* Location info with smooth transitions */}
+                  <div 
+                    key={activeIndex}
+                    style={{ 
+                      marginBottom: "20px",
+                      animation: "textSlideIn 0.5s ease-out",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      minHeight: "60px"
+                    }}
+                  >
+                    <div style={{ 
+                      fontSize: "11px", 
+                      color: "#999", 
+                      letterSpacing: "0.15em",
+                      textTransform: "uppercase",
+                      marginBottom: "8px",
+                      fontWeight: "300",
+                      fontFamily: "'Exo', sans-serif"
+                    }}>
+                      {current.country} • {current.city}
+                    </div>
+                    <div style={{ 
+                      fontSize: "18px", 
+                      fontWeight: "500", 
+                      color: "#fff",
+                      textShadow: "0 0 10px rgba(255, 255, 255, 0.3)",
+                      lineHeight: "1.3",
+                      fontFamily: "'Exo', sans-serif"
+                    }}>
+                      {current.title}
+                    </div>
+                  </div>
+                  
+                  {/* Star Rating */}
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    marginBottom: "15px",
+                    gap: "4px"
+                  }}>
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const isIOI = current.title.includes("International Olympiad in Informatics");
+                      const rating = isIOI ? 3.5 : 5;
+                      const isFilled = star <= Math.floor(rating);
+                      const isHalf = star === Math.ceil(rating) && rating % 1 !== 0;
+                      
+                      return (
+                        <span
+                          key={star}
+                          style={{
+                            fontSize: "14px",
+                            color: isFilled || isHalf ? "#ffd700" : "rgba(255,255,255,0.3)",
+                            textShadow: isFilled || isHalf ? "0 0 8px rgba(255,215,0,0.5)" : "none",
+                            fontFamily: "'Exo', sans-serif"
+                          }}
+                        >
+                          {isHalf ? "★" : (isFilled ? "★" : "☆")}
+                        </span>
+                      );
+                    })}
+                    <span style={{
+                      fontSize: "11px",
+                      color: "#999",
+                      marginLeft: "8px",
+                      fontFamily: "'Exo', sans-serif"
+                    }}>
+                      {current.title.includes("International Olympiad in Informatics") ? "3.5/5" : "5/5"}
+                    </span>
+                  </div>
+                  
+                  {/* Navigation arrows */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <button 
+                      style={{
+                        background: "transparent",
+                        color: "#fff",
+                        border: "1px solid rgba(255,255,255,0.4)",
+                        padding: "10px 16px",
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                        minWidth: "80px",
+                        zIndex: 101,
+                        position: "relative",
+                        fontFamily: "'Exo', sans-serif"
+                      }}
+                      onClick={onPrev} 
+                      aria-label="prev"
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.8)";
+                        e.currentTarget.style.boxShadow = "0 0 15px rgba(255,255,255,0.2)";
+                        e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.4)";
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.background = "transparent";
+                      }}
+                    >
+                      ← Prev
+                    </button>
+                    
+                    <div style={{
+                      flex: 1,
+                      height: "1px",
+                      background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
+                      margin: "0 20px"
+                    }} />
+                    
+                    <button 
+                      style={{
+                        background: "transparent",
+                        color: "#fff",
+                        border: "1px solid rgba(255,255,255,0.4)",
+                        padding: "10px 16px",
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                        minWidth: "80px",
+                        zIndex: 101,
+                        position: "relative",
+                        fontFamily: "'Exo', sans-serif"
+                      }}
+                      onClick={onNext} 
+                      aria-label="next"
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.8)";
+                        e.currentTarget.style.boxShadow = "0 0 15px rgba(255,255,255,0.2)";
+                        e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.4)";
+                        e.currentTarget.style.boxShadow = "none";
+                        e.currentTarget.style.background = "transparent";
+                      }}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </section>
         
-        <section
-          className="third"
-          style={{
-            height: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "4rem",
-            background: "#000",
-          }}
-        >
-          <div style={{ maxWidth: 900, color: "#fff", textAlign: "center" }}>
-            <h2>Third section</h2>
-            <p>Clean section with the globe only. Black curtain rises on scroll.</p>
-          </div>
+        <section className="third" style={{ height: "100vh", position: "relative" }}>
+          <GlitchSection />
+        </section>
+
+        <section className="fourth" style={{ height: "100vh", position: "relative" }}>
+          <FourthSection />
         </section>
         
       </div>
@@ -649,21 +1261,275 @@ export default function Portfolio() {
         background: '#000', zIndex: 15, pointerEvents: 'none', transform: 'translateY(100%)'
       }} />
 
-      {/* UI panel shows only in details */}
-      {inDetails && (
-        <div style={uiPanelStyle}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, color: "#aaa" }}>{current.country} / {current.city}</div>
-              <div style={{ fontSize: 16, fontWeight: 600, marginTop: 6 }}>{current.title}</div>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button style={arrowBtn} onClick={onPrev} aria-label="prev">←</button>
-              <button style={arrowBtn} onClick={onNext} aria-label="next">→</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
+      
+      {/* CSS Animations */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes scanline {
+            0% { transform: translateY(-100vh); }
+            100% { transform: translateY(100vh); }
+          }
+          
+          @keyframes neonGlow {
+            0% { 
+              color: #aaa;
+              text-shadow: 0 0 5px rgba(255,255,255,0.3);
+            }
+            100% { 
+              color: #f5f5f5;
+              text-shadow: 0 0 10px rgba(255,255,255,0.6), 0 0 20px rgba(255,255,255,0.3);
+            }
+          }
+          
+          @keyframes fadeInUp {
+            0% {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            100% {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          
+          @keyframes pulse {
+            0%, 100% {
+              opacity: 0.6;
+              transform: translateX(-50%) scale(1);
+            }
+            50% {
+              opacity: 1;
+              transform: translateX(-50%) scale(1.05);
+            }
+          }
+          
+          @keyframes scrollLine {
+            0% {
+              transform: scaleY(0);
+              transform-origin: top;
+            }
+            50% {
+              transform: scaleY(1);
+              transform-origin: top;
+            }
+            100% {
+              transform: scaleY(0);
+              transform-origin: bottom;
+            }
+          }
+          
+          .cursor {
+            animation: blink 1s infinite;
+            color: #fff;
+          }
+          
+          @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+          }
+          
+          .glitch-effect {
+            position: relative;
+          }
+          
+          .glitch-effect::before,
+          .glitch-effect::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.8;
+          }
+          
+          .glitch-effect::before {
+            color:rgb(216, 215, 215);
+            z-index: -1;
+            animation: glitch1 0.3s ease-in-out;
+          }
+          
+          .glitch-effect::after {
+            color:rgb(116, 116, 116);
+            z-index: -2;
+            animation: glitch2 0.3s ease-in-out;
+          }
+          
+          @keyframes glitch1 {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+          }
+          
+          @keyframes glitch2 {
+            0% { transform: translate(0); }
+            20% { transform: translate(2px, -2px); }
+            40% { transform: translate(2px, 2px); }
+            60% { transform: translate(-2px, -2px); }
+            80% { transform: translate(-2px, 2px); }
+            100% { transform: translate(0); }
+          }
+          
+          @keyframes panelSlideUp {
+            0% {
+              opacity: 0;
+              transform: translateX(-50%) translateY(30px);
+            }
+            100% {
+              opacity: 1;
+              transform: translateX(-50%) translateY(0);
+            }
+}
+          
+@keyframes neonGlow {
+0% { 
+color: #aaa;
+text-shadow: 0 0 5px rgba(255,255,255,0.3);
+}
+100% { 
+color: #f5f5f5;
+text-shadow: 0 0 10px rgba(255,255,255,0.6), 0 0 20px rgba(255,255,255,0.3);
+}
+}
+          
+@keyframes fadeInUp {
+0% {
+opacity: 0;
+transform: translateY(20px);
+}
+100% {
+opacity: 1;
+transform: translateY(0);
+}
+}
+          
+@keyframes pulse {
+0%, 100% {
+opacity: 0.6;
+transform: translateX(-50%) scale(1);
+}
+50% {
+opacity: 1;
+transform: translateX(-50%) scale(1.05);
+}
+}
+          
+@keyframes scrollLine {
+0% {
+transform: scaleY(0);
+transform-origin: top;
+}
+50% {
+transform: scaleY(1);
+transform-origin: top;
+}
+100% {
+transform: scaleY(0);
+transform-origin: bottom;
+}
+}
+          
+.cursor {
+animation: blink 1s infinite;
+color: #fff;
+}
+          
+@keyframes blink {
+0%, 50% { opacity: 1; }
+51%, 100% { opacity: 0; }
+}
+          
+.glitch-effect {
+position: relative;
+}
+          
+.glitch-effect::before,
+.glitch-effect::after {
+content: attr(data-text);
+position: absolute;
+top: 0;
+left: 0;
+width: 100%;
+height: 100%;
+opacity: 0.8;
+}
+          
+.glitch-effect::before {
+color:rgb(216, 215, 215);
+z-index: -1;
+animation: glitch1 0.3s ease-in-out;
+}
+          
+.glitch-effect::after {
+color:rgb(116, 116, 116);
+z-index: -2;
+animation: glitch2 0.3s ease-in-out;
+}
+          
+@keyframes glitch1 {
+0% { transform: translate(0); }
+20% { transform: translate(-2px, 2px); }
+40% { transform: translate(-2px, -2px); }
+60% { transform: translate(2px, 2px); }
+80% { transform: translate(2px, -2px); }
+100% { transform: translate(0); }
+}
+          
+@keyframes glitch2 {
+0% { transform: translate(0); }
+20% { transform: translate(2px, -2px); }
+40% { transform: translate(2px, 2px); }
+60% { transform: translate(-2px, -2px); }
+80% { transform: translate(-2px, 2px); }
+100% { transform: translate(0); }
+}
+          
+@keyframes panelSlideUp {
+0% {
+opacity: 0;
+transform: translateX(-50%) translateY(30px);
+}
+100% {
+opacity: 1;
+transform: translateX(-50%) translateY(0);
+}
+}
+          
+@keyframes textSlideIn {
+0% {
+opacity: 0;
+transform: translateX(-20px);
+}
+100% {
+opacity: 1;
+transform: translateX(0);
+}
+}
+          
+@keyframes profileFloat {
+0%, 100% {
+transform: translateY(0px);
+}
+50% {
+transform: translateY(-10px);
+}
+}
+          
+@keyframes profileFadeIn {
+0% {
+opacity: 0;
+transform: translateY(20px) scale(0.8);
+}
+100% {
+opacity: 1;
+transform: translateY(0px) scale(1);
+}
+}
+`
+}} />
+</>
+);
 }
