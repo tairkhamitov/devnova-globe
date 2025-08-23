@@ -68,37 +68,30 @@ const olympiadLocations: Loc[] = [
   }
 ];
 
-type ThirdSectionContent = {
-  title: string;
-  items: string[];
-};
+type ThirdItem = { text: string; img: string };
 
-const thirdSectionData: Record<string, ThirdSectionContent> = {
+const thirdSectionData: Record<'education' | 'research' | 'conferences', { title: string; items: ThirdItem[] }> = {
   education: {
     title: "Educational Journey",
     items: [
-      "Nazarbayev Intellectual School of Physics and Mathematics - Graduated with honors, specialized in advanced mathematics and theoretical physics",
-      "Bowdoin College - Current student pursuing Geography and Environmental Studies with focus on Arctic research",
-      "International Baccalaureate Program - Achieved 42/45 points with Higher Level Mathematics, Physics, and Geography",
-      "Summer Research Programs - Participated in Lamont-Doherty Earth Observatory research internship"
+      { text: "Nazarbayev Intellectual School of Physics and Mathematics - Graduated with honors, specialized in advanced mathematics and theoretical physics", img: "/third/Education/nis.jpg" },
+      { text: "Bowdoin College - Current student pursuing Geography and Environmental Studies with focus on Arctic research", img: "/third/Education/bowdoin.jpg" }
     ]
   },
   research: {
     title: "Research Projects",
     items: [
-      "Bellsund Drift Analysis - Comprehensive study of Arctic ocean currents and ice drift patterns in Svalbard region",
-      "Stellar Collapse Simulation - Computational modeling of neutron star formation using advanced physics algorithms",
-      "Sea Level Rise Prediction - Machine learning approach to coastal vulnerability assessment and future projections",
-      "Sea Ice Thickness Monitoring - Satellite data analysis for Arctic ice sheet dynamics and climate change indicators"
+      { text: "Late Quaternary Paleo and Environmental Magnetism of Bellsund Drift Informs Paleo-Svalbard-Barents Sea Ice Sheet dynamics Lamont-Doherty Earth Observatory, Columbia University ", img: "/third/Research/bellsund.jpg" },
+      { text: "2-D Stellar Collapse and Supernova Type II Explosion Simulation Using Python Bowdoin College, Department of Physics and Astronomy", img: "/third/Research/stellar_collapse.jpg" },
+      { text: "Investigating the Implications of Sea Level Rise: Analyzing Carbon Dynamics Across High and Low Zones of Salt Marshes in Southern Maine Bowdoin College, Department of Earth and Oceanographic Sciences", img: "/third/Research/salt_marsh_maine.jpg" },
+      { text: "Spatial Analysis and Comparison of Historical Sea Ice Thickness Measurements and Contemporary Data of the Canadian Arctic Archipelago and Northwest Greenland Bowdoin College, Peary-Macmillan Arctic Museum", img: "/third/Research/sea_ice_arctic.jpg" }
     ]
   },
   conferences: {
     title: "Academic Conferences",
     items: [
-      "Lamont-Doherty Earth Observatory Poster Presentation - Presented findings on Arctic ice dynamics to leading researchers",
-      "American Geophysical Union (AGU) Annual Meeting - Contributed to sessions on polar oceanography and climate science",
-      "International Arctic Science Committee Conference - Shared research on Svalbard ice drift patterns",
-      "Bowdoin College Research Symposium - Demonstrated interdisciplinary approach to environmental challenges"
+      { text: "Lamont-Doherty Earth Observatory Poster Presentation - Presented findings on Arctic ice dynamics to leading researchers", img: "/sanzhar.jpeg" },
+      { text: "American Geophysical Union (AGU) Annual Meeting - Contributed to sessions on polar oceanography and climate science", img: "/textures/earth.jpg" },
     ]
   }
 };
@@ -129,8 +122,70 @@ export default function Portfolio() {
   const thirdSectionContentRef = useRef<HTMLDivElement>(null);
   const thirdTitleTween = useRef<gsap.core.Tween | null>(null);
   
-  // Third section state
-  const [activeThirdTab, setActiveThirdTab] = useState('education');
+  // Third section extended state
+  const [activeThirdTab, setActiveThirdTab] = useState<'education'|'research'|'conferences'>('education');
+  const [activeThirdItem, setActiveThirdItem] = useState(0);
+  const [inThird, setInThird] = useState(false); // видимость секции
+  const [typedText, setTypedText] = useState("");
+  const typingTween = useRef<gsap.core.Tween | null>(null);
+
+  const thirdHeroRef = useRef<HTMLDivElement | null>(null);
+  const thirdItemFillRefs = useRef<HTMLSpanElement[]>([]);
+  const setThirdItemFillRef = (el: HTMLSpanElement | null, idx: number) => {
+    if (!el) return;
+    thirdItemFillRefs.current[idx] = el;
+  };
+
+  const thirdAutoTimer = useRef<number | null>(null);
+  const thirdProgressTween = useRef<gsap.core.Tween | null>(null);
+  const THIRD_ITEM_DURATION = 5; // сек. на пункт
+
+  const stopThirdAuto = () => {
+    if (thirdAutoTimer.current) {
+      clearTimeout(thirdAutoTimer.current);
+      thirdAutoTimer.current = null;
+    }
+    thirdProgressTween.current?.kill();
+    // сброс всех прогресс-баров
+    thirdItemFillRefs.current.forEach(el => {
+      if (el) el.style.width = '0%';
+    });
+  };
+
+  const startThirdAuto = () => {
+    stopThirdAuto();
+    const items = thirdSectionData[activeThirdTab].items;
+    const idx = activeThirdItem % items.length;
+
+    // прогресс-заливка активного пункта
+    const bar = thirdItemFillRefs.current[idx];
+    if (bar) {
+      bar.style.width = '0%';
+      thirdProgressTween.current = gsap.to(bar, {
+        width: '100%',
+        duration: THIRD_ITEM_DURATION,
+        ease: 'none'
+      });
+    }
+
+    // авто-переход
+    thirdAutoTimer.current = window.setTimeout(() => {
+      const next = (idx + 1) % items.length;
+      setActiveThirdItem(next);
+    }, THIRD_ITEM_DURATION * 1000);
+
+    // эффект появления фото в стиле киберпанк
+    if (thirdHeroRef.current) {
+      gsap.fromTo(thirdHeroRef.current, 
+        { opacity: 0, x: 20, skewX: -8, filter: 'blur(6px)' },
+        { opacity: 1, x: 0, skewX: 0, filter: 'blur(0px)', duration: 0.6, ease: 'power3.out' }
+      );
+    }
+  };
+
+  const selectThirdItem = (idx: number) => {
+    setActiveThirdItem(idx);
+  };
 
     // Use the unified olympiad locations data
 
@@ -713,6 +768,16 @@ export default function Portfolio() {
       }
     });
 
+    ScrollTrigger.create({
+      trigger: '.third',
+      start: 'top 70%',
+      end: 'bottom 30%',
+      onEnter: () => setInThird(true),
+      onEnterBack: () => setInThird(true),
+      onLeave: () => setInThird(false),
+      onLeaveBack: () => setInThird(false),
+    });
+
     // Fourth section globe positioning with automatic camera animation
     let cameraAnimation: (() => void) | null = null;
     
@@ -1059,39 +1124,38 @@ export default function Portfolio() {
     });
   };
   
-  // Handle third section tab change
-  const handleThirdTabChange = (tab: string) => {
+  const handleThirdTabChange = (tab: 'education'|'research'|'conferences') => {
     if (tab === activeThirdTab) return;
-    
-    // Slide out current content
-    if (thirdSectionContentRef.current) {
-      gsap.to(thirdSectionContentRef.current, {
-        x: -50,
-        opacity: 0,
-        duration: 0.3,
-        ease: "power2.out",
-        onComplete: () => {
-          setActiveThirdTab(tab);
-          typeThirdSectionTitle(thirdSectionData[tab].title);
-          
-          // Slide in new content
-          gsap.fromTo(thirdSectionContentRef.current, 
-            { x: 50, opacity: 0 },
-            { x: 0, opacity: 1, duration: 0.4, ease: "power2.out" }
-          );
-        }
-      });
-    }
+    setActiveThirdTab(tab);
+    setActiveThirdItem(0);
   };
   
-  // Initialize third section on mount
+  // Typewriter animation for h2 title
   useEffect(() => {
-    if (thirdSectionTitleRef.current) {
-      typeThirdSectionTitle(thirdSectionData[activeThirdTab].title);
-    }
-  }, []);
+    const title = thirdSectionData[activeThirdTab].title;
+    typingTween.current?.kill();
+    setTypedText("");
 
-  // Effect to handle activeIndex changes in second section
+    typingTween.current = gsap.to({}, {
+      duration: title.length * 0.05,
+      repeat: 0,
+      onUpdate: function () {
+        const progress = this.progress();
+        const chars = Math.floor(progress * title.length);
+        setTypedText(title.slice(0, chars));
+      }
+    });
+  }, [activeThirdTab]);
+
+  // Third section auto-progression
+  useEffect(() => {
+    if (!inThird) return;
+
+    startThirdAuto();
+    return () => stopThirdAuto();
+  }, [inThird, activeThirdTab]);
+
+  // Second section typewriter effect
   useEffect(() => {
     if (!inSecondSection) return;
     
@@ -1545,128 +1609,96 @@ export default function Portfolio() {
         <section 
           className="third" 
           style={{ 
-            height: "100vh", 
+            height: "100vh",
+            marginTop: "10rem",
             position: "relative",
-            display: "flex",
-            flexDirection: "column",
+            display: "grid",
+            gridTemplateColumns: "1fr minmax(0, 620px)",
             alignItems: "center",
-            justifyContent: "center",
-            padding: "4rem",
+            padding: "4rem 5vw",
             fontFamily: "'Exo', sans-serif",
-            color: "#fff"
+            color: "#fff",
+            pointerEvents: "auto" // важно: кнопки кликаются
           }}
         >
-          {/* Glass background panel */}
-          <div style={{
-            position: "absolute",
-            top: "10%",
-            left: "10%",
-            right: "10%",
-            bottom: "10%",
-            background: "rgba(0, 0, 0, 0.4)",
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: "20px",
-            backdropFilter: "blur(10px)",
-            zIndex: 1
-          }} />
-          
-          {/* Content container */}
-          <div style={{
-            position: "relative",
-            zIndex: 2,
-            width: "100%",
-            maxWidth: "1000px",
-            textAlign: "center"
-          }}>
-            {/* Navigation buttons */}
-            <div style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: "2rem",
-              marginBottom: "3rem"
-            }}>
+          {/* Левая колонка — чистый фон/воздух, чтобы всё было справа */}
+          <div aria-hidden />
+
+          {/* Правая колонка — весь контент */}
+          <div className="third-right" style={{ justifySelf: "end", width: "min(90vw, 620px)" }}>
+            
+            {/* Навигация по разделам */}
+            <div className="third-nav" style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginBottom: "2rem", pointerEvents: "auto", marginRight: "6rem"}}>
               {[
                 { key: 'education', label: 'Education' },
-                { key: 'research', label: 'Research Projects' },
+                { key: 'research', label: 'Research' },
                 { key: 'conferences', label: 'Conferences' }
               ].map(({ key, label }) => (
                 <button
                   key={key}
-                  onClick={() => handleThirdTabChange(key)}
-                  style={{
-                    background: activeThirdTab === key ? "rgba(255, 255, 255, 0.1)" : "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.3)",
-                    color: "#fff",
-                    padding: "12px 24px",
-                    borderRadius: "12px",
-                    fontSize: "16px",
-                    fontWeight: "500",
-                    cursor: "pointer",
-                    transition: "all 0.3s ease",
-                    fontFamily: "'Exo', sans-serif",
-                    letterSpacing: "0.05em",
-                    textTransform: "uppercase",
-                    position: "relative",
-                    zIndex: 3,
-                    pointerEvents: "auto"
-                  }}
-                  onMouseEnter={(e) => {
-                    if (activeThirdTab !== key) {
-                      e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
-                      e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.5)";
-                      e.currentTarget.style.boxShadow = "0 0 15px rgba(255, 255, 255, 0.1)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (activeThirdTab !== key) {
-                      e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
-                      e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
-                      e.currentTarget.style.boxShadow = "none";
-                    }
-                  }}
+                  onClick={() => handleThirdTabChange(key as 'education'|'research'|'conferences')}
+                  className={`cpk-btn ${activeThirdTab === key ? 'is-active' : ''}`}
+                  aria-pressed={activeThirdTab === key}
                 >
                   {label}
                 </button>
               ))}
             </div>
-            
-            {/* Title with typewriter effect */}
-            <h2 
+
+            {/* Заголовок (typewriter у тебя уже есть; тут — чистый заголовок) */}
+            <h2
               ref={thirdSectionTitleRef}
               style={{
-                fontSize: "3rem",
-                fontWeight: "600",
-                marginBottom: "2rem",
+                fontSize: "2.2rem",
+                fontWeight: 700,
+                marginBottom: "1.25rem",
                 textAlign: "center",
-                fontFamily: "'Exo', sans-serif"
-              }}
-            />
-            
-            {/* Content area */}
-            <div 
-              ref={thirdSectionContentRef}
-              style={{
-                textAlign: "left",
-                maxWidth: "800px",
-                margin: "0 auto"
+                letterSpacing: "0.02em",
+                fontFamily: "'Share Tech Mono', monospace"
               }}
             >
-              {thirdSectionData[activeThirdTab].items.map((item, index) => (
-                <div
-                  key={index}
-                  style={{
-                    marginBottom: "1.5rem",
-                    padding: "1rem",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.1)",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    lineHeight: "1.6",
-                    fontFamily: "'Exo', sans-serif"
-                  }}
+              {typedText}
+              <span className="cursor">|</span>
+            </h2>
+
+            {/* Заглавное фото */}
+            <div ref={thirdHeroRef} className="third-hero">
+              <img
+                key={`${activeThirdTab}-${activeThirdItem}`}
+                src={thirdSectionData[activeThirdTab].items[activeThirdItem]?.img}
+                alt="Related visual"
+                className="third-hero-img"
+                onError={(e) => {
+                  const t = e.currentTarget as HTMLImageElement;
+                  t.style.display = 'none';
+                  const parent = t.parentElement as HTMLElement;
+                  parent.style.background = 'linear-gradient(135deg, #222, #555)';
+                  parent.style.color = '#fff';
+                  parent.style.display = 'flex';
+                  parent.style.alignItems = 'center';
+                  parent.style.justifyContent = 'center';
+                  parent.textContent = 'Image';
+                }}
+              />
+              {/* угловые декоративные элементы */}
+              <span className="corner tl" />
+              <span className="corner tr" />
+              <span className="corner bl" />
+              <span className="corner br" />
+            </div>
+
+            {/* Кликабельные пункты с синхронизацией */}
+            <div className="third-list" style={{ marginTop: "1.25rem", display: "grid", gap: "10px", backgroundColor: "#111111", fontFamily: "'Exo', monospace" }}>
+              {thirdSectionData[activeThirdTab].items.map((it, idx) => (
+                <button
+                  key={idx}
+                  className={`third-item ${idx === activeThirdItem ? 'is-active' : ''}`}
+                  onClick={() => selectThirdItem(idx)}
                 >
-                  {item}
-                </div>
+                  <span ref={(el) => setThirdItemFillRef(el, idx)} className="fill" />
+                  <span className="idx">{String(idx + 1).padStart(2, '0')}</span>
+                  <span className="txt">{it.text}</span>
+                </button>
               ))}
             </div>
           </div>
@@ -1704,6 +1736,34 @@ export default function Portfolio() {
             }
           }
           
+          @keyframes cyberSlide {
+            0% { 
+              opacity: 0; 
+              transform: translateX(50px) skewX(-10deg); 
+              filter: blur(6px); 
+            }
+            100% { 
+              opacity: 1; 
+              transform: translateX(0) skewX(0); 
+              filter: blur(0); 
+            }
+          }
+
+          .cyber-btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s ease;
+          }
+
+          .cyber-btn:hover::after {
+            left: 100%;
+          }
+
           @keyframes fadeInUp {
             0% {
               opacity: 0;
@@ -1713,6 +1773,123 @@ export default function Portfolio() {
               opacity: 1;
               transform: translateY(0);
             }
+          }
+
+          /* ==== THIRD SECTION (cyber-minimal b/w) ==== */
+
+          .cpk-btn {
+            position: relative;
+            background: #111111;
+            color: #fff;
+            border: 1px solid #fff;
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            clip-path: polygon(10px 0%, 100% 0%, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0% 100%, 0% 10px);
+            cursor: pointer;
+            overflow: hidden;
+            transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+          }
+          .cpk-btn::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%);
+            transform: translateX(-100%);
+            pointer-events: none;
+          }
+          .cpk-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 18px rgba(255,255,255,0.12);
+          }
+          .cpk-btn:hover::after { 
+            animation: btn-scan 0.8s ease forwards; 
+          }
+          .cpk-btn.is-active {
+            border-color:rgb(255, 132, 9);
+            box-shadow: 0 0 0 1px #fff inset;
+          }
+          .cursor {
+            display: inline-block;
+            width: 1ch;
+            animation: blink 0.8s steps(1) infinite;
+          }
+          @keyframes btn-scan {
+            to { transform: translateX(100%); }
+          }
+          @keyframes blink {
+            0%, 50% { opacity: 1; }
+            50.01%, 100% { opacity: 0; }
+          }
+
+          /* hero image frame */
+          .third-hero {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            border: 1px solid #fff;
+            overflow: hidden;
+            box-shadow: 0 0 22px rgba(255,255,255,0.08);
+            background: #000;
+            animation: cyberSlide 0.5s ease both;
+          }
+          .third-hero::before {
+            content: "";
+            position: absolute; inset: 0;
+            background: repeating-linear-gradient( to bottom, rgba(255,255,255,0.04), rgba(255,255,255,0.04) 1px, transparent 1px, transparent 3px );
+            mix-blend-mode: screen;
+            pointer-events: none;
+          }
+          .third-hero-img {
+            width: 100%; height: 100%; object-fit: cover; display: block;
+          }
+
+          /* corner decorations */
+          .third-hero .corner {
+            position: absolute; width: 18px; height: 18px; border: 1px solid #fff;
+          }
+          .third-hero .corner.tl { top: 8px; left: 8px; border-right: none; border-bottom: none; }
+          .third-hero .corner.tr { top: 8px; right: 8px; border-left: none; border-bottom: none; }
+          .third-hero .corner.bl { bottom: 8px; left: 8px; border-right: none; border-top: none; }
+          .third-hero .corner.br { bottom: 8px; right: 8px; border-left: none; border-top: none; }
+
+          /* list items */
+          .third-item {
+            position: relative;
+            display: grid;
+            grid-template-columns: 2ch 1fr;
+            align-items: start;
+            gap: 12px;
+            background: transparent;
+            color: #eaeaea;
+            border: 1px solid rgba(255,255,255,0.18);
+            padding: 12px 14px;
+            cursor: pointer;
+            text-align: left;
+            overflow: hidden;
+            transition: border-color .2s ease, transform .15s ease, background-color .2s ease;
+          }
+          .third-item .idx {
+            color: #fff; font-weight: 800; font-size: 12px; letter-spacing: 0.08em;
+            margin-top: 2px;
+          }
+          .third-item .txt {
+            font-size: 15px; line-height: 1.55;
+          }
+          .third-item .fill {
+            position: absolute; left: 0; top: 0; height: 100%; width: 0%;
+            background: rgba(255,255,255,0.07);
+            pointer-events: none;
+          }
+          .third-item:hover { 
+            transform: translateX(2px);
+            border-color: rgba(255,255,255,0.4);
+          }
+          .third-item.is-active {
+            border-color: #fff;
+            box-shadow: inset 0 0 0 1px #fff;
           }
           
           @keyframes pulse {
