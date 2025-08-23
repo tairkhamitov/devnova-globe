@@ -103,7 +103,7 @@ const thirdSectionData: Record<string, ThirdSectionContent> = {
   }
 };
 
-export default function Portfolio() {
+function Portfolio() {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
 
@@ -130,7 +130,15 @@ export default function Portfolio() {
   const thirdTitleTween = useRef<gsap.core.Tween | null>(null);
   
   // Third section state
-  const [activeThirdTab, setActiveThirdTab] = useState('education');
+  const [activeThirdTab, setActiveThirdTab] = useState('edu');
+  const [activeImg, setActiveImg] = useState(0);
+  
+  // Sample images for slider (replace with actual image paths)
+  const images = [
+    '/sanzhar.jpeg',
+    '/textures/earth.jpg',
+    '/sanzhar.jpeg'
+  ];
 
     // Use the unified olympiad locations data
 
@@ -198,6 +206,9 @@ export default function Portfolio() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.setClearColor(0x000000, 1);
+    
+    // Add globe-layer class for proper z-index layering
+    renderer.domElement.className = 'globe-layer';
     mount.appendChild(renderer.domElement);
 
     // Lights
@@ -255,87 +266,6 @@ export default function Portfolio() {
     });
     const stars = new THREE.Points(starGeo, starMat);
     scene.add(stars);
-
-    // Grid background circle for third section with thin white lines
-    function createGridTexture() {
-      const size = 256;
-      const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d")!;
-
-      // фон
-      ctx.fillStyle = "#000000"; // чёрный фон
-      ctx.fillRect(0, 0, size, size);
-
-      // линии
-      ctx.strokeStyle = "#ffffff"; // белые линии
-      ctx.lineWidth = 0.05; // толщина линий
-      const step = 32;   // шаг сетки
-
-      for (let x = 0; x <= size; x += step) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, size);
-        ctx.stroke();
-      }
-
-      for (let y = 0; y <= size; y += step) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(size, y);
-        ctx.stroke();
-      }
-
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat.set(8, 8); // плотность (увеличь число = сетка мельче)
-      return texture;
-    }
-
-    const circleGeo = new THREE.CircleGeometry(2, 128);
-    const circleMat = new THREE.MeshBasicMaterial({
-      map: createGridTexture(),
-      transparent: true,
-      opacity: 1,
-      side: THREE.DoubleSide,
-      depthTest: true,
-      depthWrite: true,
-    });
-    const bgCircle = new THREE.Mesh(circleGeo, circleMat);
-    // Поставь КРУГ ЗА Землёй и сместить влево
-    bgCircle.position.set(-2, 0, -0.5);
-    bgCircle.scale.setScalar(0.001); // скрыт в начале
-    scene.add(bgCircle);
-
-    // Установи порядок рендера, чтобы звёзды были сзади круга, а Земля спереди
-    stars.renderOrder = 0;       // звёзды сзади
-    bgCircle.renderOrder = 1;    // круг посередине
-
-    // Ensure stars don't show through the circle
-    if (stars && (stars as THREE.Points).material) {
-      const m = (stars as THREE.Points).material as THREE.Material & { depthWrite?: boolean; transparent?: boolean; opacity?: number; };
-      if (m.transparent) m.opacity = 1;
-      if (m.depthWrite === false) m.depthWrite = true; // разрешить запись в глубину
-    }
-
-    // Function to calculate needed circle scale for current viewport
-    function fitCircleToViewport() {
-      const dist = Math.abs(camera.position.z - bgCircle.position.z);
-      const vFOV = THREE.MathUtils.degToRad(camera.fov);
-      const viewHeight = 2 * Math.tan(vFOV / 2) * dist;
-      const viewWidth = viewHeight * camera.aspect;
-      const diag = Math.sqrt(viewWidth * viewWidth + viewHeight * viewHeight);
-      const radiusNeeded = diag / 2; // geometry радиус = 1
-      return radiusNeeded;
-    }
-
-    let targetCircleScale = fitCircleToViewport();
-
-    // Подними все меши Земли
-    globeGroup.traverse(o => { 
-      if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).renderOrder = 2; 
-    });
 
     // initial transform: hero centered
     globeGroup.position.set(0, 0, 0);
@@ -672,47 +602,6 @@ export default function Portfolio() {
       });
     }
 
-    // Third section yellow circle background animation
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    ScrollTrigger.create({
-      trigger: '.third',
-      start: 'top center',
-      end: 'bottom center',
-      onEnter: () => {
-        gsap.to(bgCircle.scale, {
-          x: targetCircleScale,
-          y: targetCircleScale,
-          z: 1,
-          duration: prefersReduced ? 0 : 1.1,
-          ease: 'power2.out'
-        });
-      },
-      onEnterBack: () => {
-        gsap.to(bgCircle.scale, {
-          x: targetCircleScale,
-          y: targetCircleScale,
-          z: 1,
-          duration: prefersReduced ? 0 : 1.1,
-          ease: 'power2.out'
-        });
-      },
-      onLeave: () => {
-        gsap.to(bgCircle.scale, {
-          x: 0.001, y: 0.001, z: 1,
-          duration: prefersReduced ? 0 : 0.9,
-          ease: 'power2.in'
-        });
-      },
-      onLeaveBack: () => {
-        gsap.to(bgCircle.scale, {
-          x: 0.001, y: 0.001, z: 1,
-          duration: prefersReduced ? 0 : 0.9,
-          ease: 'power2.in'
-        });
-      }
-    });
-
     // Fourth section globe positioning with automatic camera animation
     let cameraAnimation: (() => void) | null = null;
     
@@ -945,9 +834,6 @@ export default function Portfolio() {
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h, false);
-      
-      // Update circle scale target for viewport changes
-      targetCircleScale = fitCircleToViewport();
     };
     window.addEventListener("resize", onResize);
 
@@ -1090,6 +976,17 @@ export default function Portfolio() {
       typeThirdSectionTitle(thirdSectionData[activeThirdTab].title);
     }
   }, []);
+  
+  // Auto-fade image slider
+  useEffect(() => {
+    const id = setInterval(() => {
+      setActiveImg(i => (i + 1) % images.length);
+    }, 4000);
+    return () => clearInterval(id);
+  }, [images.length]);
+  
+  const prevImg = () => setActiveImg(i => (i - 1 + images.length) % images.length);
+  const nextImg = () => setActiveImg(i => (i + 1) % images.length);
 
   // Effect to handle activeIndex changes in second section
   useEffect(() => {
@@ -1357,7 +1254,7 @@ export default function Portfolio() {
         </section>
 
         <section
-          className="details"
+          className="details ui-layer"
           style={{
             height: "200vh",
             display: "grid",
@@ -1366,7 +1263,8 @@ export default function Portfolio() {
             alignItems: "center",
             padding: "4rem",
             position: "relative",
-            fontFamily: "'Exo', sans-serif"
+            fontFamily: "'Exo', sans-serif",
+            zIndex: 50
           }}
         >
           {/* Globe wrapper - left side */}
@@ -1374,8 +1272,7 @@ export default function Portfolio() {
             className="globe-wrap"
             style={{
               position: "relative",
-              zIndex: 0,
-              pointerEvents: "auto"
+              pointerEvents: "none"
             }}
           />
           
@@ -1384,8 +1281,6 @@ export default function Portfolio() {
             className="details-right"
             style={{
               position: "relative",
-              marginTop: "15rem",
-              zIndex: 2,
               pointerEvents: "auto",
               color: "#fff"
             }}
@@ -1421,8 +1316,7 @@ export default function Portfolio() {
                     borderRadius: "16px",
                     marginBottom: "12px",
                     width: "500px",
-                    transform: "translateX(30%)",
-                    
+                    transform: "translateX(30%)"
                   }}
                 >
                   <div className="loc-meta">
@@ -1542,132 +1436,88 @@ export default function Portfolio() {
           </div>
         </section>
         
-        <section 
-          className="third" 
-          style={{ 
-            height: "100vh", 
-            position: "relative",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "4rem",
-            fontFamily: "'Exo', sans-serif",
-            color: "#fff"
-          }}
-        >
-          {/* Glass background panel */}
-          <div style={{
-            position: "absolute",
-            top: "10%",
-            left: "10%",
-            right: "10%",
-            bottom: "10%",
-            background: "rgba(0, 0, 0, 0.4)",
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: "20px",
-            backdropFilter: "blur(10px)",
-            zIndex: 1
-          }} />
-          
-          {/* Content container */}
-          <div style={{
-            position: "relative",
-            zIndex: 2,
-            width: "100%",
-            maxWidth: "1000px",
-            textAlign: "center"
-          }}>
-            {/* Navigation buttons */}
-            <div style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: "2rem",
-              marginBottom: "3rem"
-            }}>
-              {[
-                { key: 'education', label: 'Education' },
-                { key: 'research', label: 'Research Projects' },
-                { key: 'conferences', label: 'Conferences' }
-              ].map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => handleThirdTabChange(key)}
-                  style={{
-                    background: activeThirdTab === key ? "rgba(255, 255, 255, 0.1)" : "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.3)",
-                    color: "#fff",
-                    padding: "12px 24px",
-                    borderRadius: "12px",
-                    fontSize: "16px",
-                    fontWeight: "500",
-                    cursor: "pointer",
-                    transition: "all 0.3s ease",
-                    fontFamily: "'Exo', sans-serif",
-                    letterSpacing: "0.05em",
-                    textTransform: "uppercase",
-                    position: "relative",
-                    zIndex: 3,
-                    pointerEvents: "auto"
-                  }}
-                  onMouseEnter={(e) => {
-                    if (activeThirdTab !== key) {
-                      e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
-                      e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.5)";
-                      e.currentTarget.style.boxShadow = "0 0 15px rgba(255, 255, 255, 0.1)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (activeThirdTab !== key) {
-                      e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
-                      e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)";
-                      e.currentTarget.style.boxShadow = "none";
-                    }
-                  }}
+        <section className="third full-viewport" style={{ background: "#0f0f10" }}>
+          <div className="third-content ui-layer">
+            <div className="third-right">
+              <div className="third-tabs">
+                <button 
+                  data-tab="edu" 
+                  onClick={() => handleThirdTabChange('edu')} 
+                  className={activeThirdTab === 'edu' ? 'is-active' : ''}
                 >
-                  {label}
+                  Education
                 </button>
-              ))}
-            </div>
-            
-            {/* Title with typewriter effect */}
-            <h2 
-              ref={thirdSectionTitleRef}
-              style={{
-                fontSize: "3rem",
-                fontWeight: "600",
-                marginBottom: "2rem",
-                textAlign: "center",
-                fontFamily: "'Exo', sans-serif"
-              }}
-            />
-            
-            {/* Content area */}
-            <div 
-              ref={thirdSectionContentRef}
-              style={{
-                textAlign: "left",
-                maxWidth: "800px",
-                margin: "0 auto"
-              }}
-            >
-              {thirdSectionData[activeThirdTab].items.map((item, index) => (
-                <div
-                  key={index}
-                  style={{
-                    marginBottom: "1.5rem",
-                    padding: "1rem",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.1)",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    lineHeight: "1.6",
-                    fontFamily: "'Exo', sans-serif"
-                  }}
+                <button 
+                  data-tab="proj" 
+                  onClick={() => handleThirdTabChange('proj')} 
+                  className={activeThirdTab === 'proj' ? 'is-active' : ''}
                 >
-                  {item}
+                  Research Projects
+                </button>
+                <button 
+                  data-tab="conf" 
+                  onClick={() => handleThirdTabChange('conf')} 
+                  className={activeThirdTab === 'conf' ? 'is-active' : ''}
+                >
+                  Conferences
+                </button>
+              </div>
+
+              <div className="third-hero">
+                <img 
+                  src={images[activeImg]} 
+                  alt="" 
+                  className="hero-img fade" 
+                  key={activeImg}
+                />
+                <div className="hero-controls">
+                  <button onClick={prevImg} aria-label="prev">←</button>
+                  <button onClick={nextImg} aria-label="next">→</button>
                 </div>
-              ))}
+              </div>
+
+              <div className="third-panel">
+                {activeThirdTab === 'edu' && (
+                  <div>
+                    <h3 ref={thirdSectionTitleRef} style={{ fontSize: "2rem", marginBottom: "1rem", fontFamily: "'Exo', sans-serif" }} />
+                    <div ref={thirdSectionContentRef}>
+                      {thirdSectionData.edu.items.map((item, index) => (
+                        <div key={index} style={{ marginBottom: "1rem", fontSize: "14px", lineHeight: "1.5" }}>
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {activeThirdTab === 'proj' && (
+                  <div>
+                    <h3 style={{ fontSize: "2rem", marginBottom: "1rem", fontFamily: "'Exo', sans-serif" }}>
+                      Research Projects
+                    </h3>
+                    <div>
+                      {thirdSectionData.proj.items.map((item, index) => (
+                        <div key={index} style={{ marginBottom: "1rem", fontSize: "14px", lineHeight: "1.5" }}>
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {activeThirdTab === 'conf' && (
+                  <div>
+                    <h3 style={{ fontSize: "2rem", marginBottom: "1rem", fontFamily: "'Exo', sans-serif" }}>
+                      Academic Conferences
+                    </h3>
+                    <div>
+                      {thirdSectionData.conf.items.map((item, index) => (
+                        <div key={index} style={{ marginBottom: "1rem", fontSize: "14px", lineHeight: "1.5" }}>
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -1730,92 +1580,24 @@ export default function Portfolio() {
             0% {
               transform: scaleY(0);
               transform-origin: top;
-            }
-            50% {
-              transform: scaleY(1);
-              transform-origin: top;
-            }
-            100% {
-              transform: scaleY(0);
-              transform-origin: bottom;
-            }
-          }
-          
-          .cursor {
-            animation: blink 1s infinite;
-            color: #fff;
-          }
-          
-          @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0; }
-          }
-          
-          .glitch-effect {
-            position: relative;
-          }
-          
-          .glitch-effect::before,
-          .glitch-effect::after {
-            content: attr(data-text);
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0.8;
-          }
-          
-          .glitch-effect::before {
-            color:rgb(216, 215, 215);
-            z-index: -1;
-            animation: glitch1 0.3s ease-in-out;
-          }
-          
-          .glitch-effect::after {
-            color:rgb(116, 116, 116);
-            z-index: -2;
-            animation: glitch2 0.3s ease-in-out;
-          }
-          
-          @keyframes glitch1 {
-            0% { transform: translate(0); }
-            20% { transform: translate(-2px, 2px); }
-            40% { transform: translate(-2px, -2px); }
-            60% { transform: translate(2px, 2px); }
-            80% { transform: translate(2px, -2px); }
-            100% { transform: translate(0); }
-          }
-          
-          @keyframes glitch2 {
-            0% { transform: translate(0); }
-            20% { transform: translate(2px, -2px); }
-            40% { transform: translate(2px, 2px); }
-            60% { transform: translate(-2px, -2px); }
-            80% { transform: translate(-2px, 2px); }
-            100% { transform: translate(0); }
-          }
-          
-          @keyframes panelSlideUp {
-            0% {
-              opacity: 0;
               transform: translateX(-50%) translateY(30px);
             }
             100% {
               opacity: 1;
               transform: translateX(-50%) translateY(0);
             }
-}
+          }
           
-@keyframes neonGlow {
-0% { 
-color: #aaa;
-text-shadow: 0 0 5px rgba(255,255,255,0.3);
-}
-100% { 
-color: #f5f5f5;
-text-shadow: 0 0 10px rgba(255,255,255,0.6), 0 0 20px rgba(255,255,255,0.3);
-}
+          @keyframes neonGlow {
+            0% { 
+              color: #aaa;
+              text-shadow: 0 0 5px rgba(255,255,255,0.3);
+            }
+            100% { 
+              color: #f5f5f5;
+              text-shadow: 0 0 10px rgba(255,255,255,0.6), 0 0 20px rgba(255,255,255,0.3);
+            }
+          }
 }
           
 @keyframes fadeInUp {
@@ -1892,125 +1674,126 @@ z-index: -2;
 animation: glitch2 0.3s ease-in-out;
 }
           
-@keyframes glitch1 {
-0% { transform: translate(0); }
-20% { transform: translate(-2px, 2px); }
-40% { transform: translate(-2px, -2px); }
-60% { transform: translate(2px, 2px); }
-80% { transform: translate(2px, -2px); }
-100% { transform: translate(0); }
-}
+          @keyframes glitch1 {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+          }
           
-@keyframes glitch2 {
-0% { transform: translate(0); }
-20% { transform: translate(2px, -2px); }
-40% { transform: translate(2px, 2px); }
-60% { transform: translate(-2px, -2px); }
-80% { transform: translate(-2px, 2px); }
-100% { transform: translate(0); }
-}
+          @keyframes glitch2 {
+            0% { transform: translate(0); }
+            20% { transform: translate(2px, -2px); }
+            40% { transform: translate(2px, 2px); }
+            60% { transform: translate(-2px, -2px); }
+            80% { transform: translate(-2px, 2px); }
+            100% { transform: translate(0); }
+          }
           
-@keyframes panelSlideUp {
-0% {
-opacity: 0;
-transform: translateX(-50%) translateY(30px);
-}
-100% {
-opacity: 1;
-transform: translateX(-50%) translateY(0);
-}
-}
+          @keyframes panelSlideUp {
+            0% {
+            opacity: 0;
+            transform: translateX(-50%) translateY(30px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+          }
+        }
           
-@keyframes textSlideIn {
-0% {
-opacity: 0;
-transform: translateX(-20px);
-}
-100% {
-opacity: 1;
-transform: translateX(0);
-}
-}
+        @keyframes textSlideIn {
+            0% {
+              opacity: 0;
+              transform: translateX(-20px);
+            }
+            100% {
+              opacity: 1;
+              transform: translateX(0);
+            }
+          }
           
-@keyframes profileFloat {
-0%, 100% {
-transform: translateY(0px);
-}
-50% {
-transform: translateY(-10px);
-}
-}
+          @keyframes profileFloat {
+            0%, 100% {
+              transform: translateY(0px);
+            }
+            50% {
+              transform: translateY(-10px);
+            }
+          }
           
-@keyframes profileFadeIn {
-0% {
-opacity: 0;
-transform: translateY(20px) scale(0.8);
-}
-100% {
-opacity: 1;
-transform: translateY(0px) scale(1);
-}
+          @keyframes profileFadeIn {
+            0% {
+              opacity: 0;
+              transform: translateY(20px) scale(0.8);
+            }
+            100% {
+              opacity: 1;
+              transform: translateY(0px) scale(1);
+            }
+          }
+
+          /* Second section specific styles */
+          .details, .details * { 
+            font-family: 'Exo', sans-serif; 
+          }
+
+          .loc-panel {
+            pointer-events: auto; 
+            z-index: 3;
+          }
+
+          .nav-btn { 
+            pointer-events: auto; 
+            position: relative; 
+            z-index: 3; 
+          }
+
+          .details-right { 
+            pointer-events: auto; 
+            z-index: 2; 
+          }
+
+          .loc-desc {
+            pointer-events: none !important;
+          }
+
+          /* Third section positioning */
+          .third .globe-wrap {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            z-index: 1 !important;
+          }
+
+          .third .ui-layer {
+            position: relative !important;
+            z-index: 10 !important;
+            pointer-events: auto !important;
+          }
+
+          /* Mobile responsive grid */
+          @media (max-width: 900px) {
+            .details { 
+              grid-template-columns: 1fr !important; 
+              gap: 2rem !important;
+              padding: 2rem !important;
+            }
+            .globe-wrap { 
+              position: static !important; 
+              transform: none !important; 
+              margin: 0 auto 24px !important; 
+            }
+            .details-title {
+              font-size: 2rem !important;
+            }
+          }
+        `}</style>
+      </>
+    );
 }
 
-/* Second section specific styles */
-.details, .details * { 
-font-family: 'Exo', sans-serif; 
-}
-
-.loc-panel {
-pointer-events: auto; 
-z-index: 3;
-}
-
-.nav-btn { 
-pointer-events: auto; 
-position: relative; 
-z-index: 3; 
-}
-
-.details-right { 
-pointer-events: auto; 
-z-index: 2; 
-}
-
-.loc-desc {
-pointer-events: none !important;
-z-index: 1 !important;
-position: relative !important;
-}
-
-/* Third section Earth positioning */
-.third {
-position: relative;
-z-index: 0;
-}
-
-.third canvas {
-position: fixed !important;
-top: 0 !important;
-left: 0 !important;
-z-index: 0 !important;
-pointer-events: auto !important;
-}
-
-/* Mobile responsive grid */
-@media (max-width: 900px) {
-.details { 
-grid-template-columns: 1fr !important; 
-gap: 2rem !important;
-padding: 2rem !important;
-}
-.globe-wrap { 
-position: static !important; 
-transform: none !important; 
-margin: 0 auto 24px !important; 
-}
-.details-title {
-font-size: 2rem !important;
-}
-}
-`
-}} />
-</>
-);
-}
+export default Portfolio;
