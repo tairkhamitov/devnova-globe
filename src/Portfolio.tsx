@@ -1,12 +1,13 @@
 // src/Portfolio.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import * as THREE from "three";
-import gsap from "gsap";
-import { ScrollToPlugin } from "gsap/ScrollToPlugin";
+import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import FourthSection from "./FourthSection";
+import { FaGithub, FaLinkedin, FaTelegram, FaWhatsapp, FaInstagram } from "react-icons/fa";
+import { ScrollToPlugin } from "gsap/ScrollToPlugin";
 import { TextPlugin } from "gsap/TextPlugin";
 import GlitchSection from "./GlitchSection";
-import FourthSection from "./FourthSection";
 
 gsap.registerPlugin(ScrollTrigger, ScrollToPlugin, TextPlugin);
 
@@ -68,37 +69,37 @@ const olympiadLocations: Loc[] = [
   }
 ];
 
-type ThirdItem = { text: string; img: string };
+type ThirdItem = { text: string; img: string; link?: string; loc?: string };
 
 const thirdSectionData: Record<'education' | 'research' | 'conferences', { title: string; items: ThirdItem[] }> = {
   education: {
     title: "Educational Journey",
     items: [
-      { text: "Nazarbayev Intellectual School of Physics and Mathematics - Graduated with honors, specialized in advanced mathematics and theoretical physics", img: "/third/Education/nis.jpg" },
-      { text: "Bowdoin College - Current student pursuing Geography and Environmental Studies with focus on Arctic research", img: "/third/Education/bowdoin.jpg" }
+      { text: "Nazarbayev Intellectual School of Physics and Mathematics - Graduated with honors, specialized in advanced mathematics and theoretical physics", img: "/third/Education/nis.jpg", link: "https://nis.edu.kz/", loc: "nis" },
+      { text: "Bowdoin College - Current student pursuing Geography and Environmental Studies with focus on Arctic research", img: "/third/Education/bowdoin.jpg", link: "https://www.bowdoin.edu/", loc: "bowdoin" }
     ]
   },
   research: {
     title: "Research Projects",
     items: [
-      { text: "Late Quaternary Paleo and Environmental Magnetism of Bellsund Drift Informs Paleo-Svalbard-Barents Sea Ice Sheet dynamics Lamont-Doherty Earth Observatory, Columbia University ", img: "/third/Research/bellsund.jpg" },
-      { text: "2-D Stellar Collapse and Supernova Type II Explosion Simulation Using Python Bowdoin College, Department of Physics and Astronomy", img: "/third/Research/stellar_collapse.jpg" },
-      { text: "Investigating the Implications of Sea Level Rise: Analyzing Carbon Dynamics Across High and Low Zones of Salt Marshes in Southern Maine Bowdoin College, Department of Earth and Oceanographic Sciences", img: "/third/Research/salt_marsh_maine.jpg" },
-      { text: "Spatial Analysis and Comparison of Historical Sea Ice Thickness Measurements and Contemporary Data of the Canadian Arctic Archipelago and Northwest Greenland Bowdoin College, Peary-Macmillan Arctic Museum", img: "/third/Research/sea_ice_arctic.jpg" }
+      { text: "Late Quaternary Paleo and Environmental Magnetism of Bellsund Drift Informs Paleo-Svalbard-Barents Sea Ice Sheet dynamics Lamont-Doherty Earth Observatory, Columbia University ", img: "/third/Research/bellsund.jpg", link: "https://www.ldeo.columbia.edu/" },
+      { text: "2-D Stellar Collapse and Supernova Type II Explosion Simulation Using Python Bowdoin College, Department of Physics and Astronomy", img: "/third/Research/stellar_collapse.jpg", link: "https://www.bowdoin.edu/physics-astronomy/" },
+      { text: "Investigating the Implications of Sea Level Rise: Analyzing Carbon Dynamics Across High and Low Zones of Salt Marshes in Southern Maine Bowdoin College, Department of Earth and Oceanographic Sciences", img: "/third/Research/salt_marsh_maine.jpg", link: "https://www.bowdoin.edu/earth-oceanographic-science/" },
+      { text: "Spatial Analysis and Comparison of Historical Sea Ice Thickness Measurements and Contemporary Data of the Canadian Arctic Archipelago and Northwest Greenland Bowdoin College, Peary-Macmillan Arctic Museum", img: "/third/Research/sea_ice_arctic.jpg", link: "https://www.bowdoin.edu/arctic-museum/" }
     ]
   },
   conferences: {
     title: "Academic Conferences",
     items: [
-      { text: "Lamont-Doherty Earth Observatory Poster Presentation - Presented findings on Arctic ice dynamics to leading researchers", img: "/sanzhar.jpeg" },
-      { text: "American Geophysical Union (AGU) Annual Meeting - Contributed to sessions on polar oceanography and climate science", img: "/textures/earth.jpg" },
+      { text: "Lamont-Doherty Earth Observatory Poster Presentation - Presented findings on Arctic ice dynamics to leading researchers", img: "/sanzhar.jpeg", link: "https://www.ldeo.columbia.edu/" },
+      { text: "American Geophysical Union (AGU) Annual Meeting - Contributed to sessions on polar oceanography and climate science", img: "/textures/earth.jpg", link: "https://www.agu.org/" },
     ]
   }
 };
 
 export default function Portfolio() {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const emissiveProxy = useRef({ value: 0x000000 });
 
   // UI state
   const [activeIndex, setActiveIndex] = useState(0);
@@ -130,49 +131,53 @@ export default function Portfolio() {
   const typingTween = useRef<gsap.core.Tween | null>(null);
 
   const thirdHeroRef = useRef<HTMLDivElement | null>(null);
-  const thirdItemFillRefs = useRef<HTMLSpanElement[]>([]);
-  const setThirdItemFillRef = (el: HTMLSpanElement | null, idx: number) => {
+  const thirdItemFillRefs = useRef<HTMLDivElement[]>([]);
+  const setThirdItemFillRef = (el: HTMLDivElement | null, idx: number) => {
     if (!el) return;
     thirdItemFillRefs.current[idx] = el;
   };
 
   const thirdAutoTimer = useRef<number | null>(null);
   const thirdProgressTween = useRef<gsap.core.Tween | null>(null);
+
+  // Education coordinates and beam management
+  const educationCoords: Record<'nis'|'bowdoin', [number, number]> = {
+    nis: [51.1694, 71.4491],      // Astana, KZ
+    bowdoin: [43.9076, -69.9638], // Brunswick, ME
+  };
+  const beamGroupRef = useRef<THREE.Group | null>(null);
   const THIRD_ITEM_DURATION = 5; // сек. на пункт
 
   const stopThirdAuto = () => {
-    if (thirdAutoTimer.current) {
-      clearTimeout(thirdAutoTimer.current);
-      thirdAutoTimer.current = null;
-    }
     thirdProgressTween.current?.kill();
-    // сброс всех прогресс-баров
-    thirdItemFillRefs.current.forEach(el => {
-      if (el) el.style.width = '0%';
-    });
+    thirdProgressTween.current = null;
+    thirdItemFillRefs.current.forEach(el => { if (el) el.style.width = '0%'; });
   };
 
   const startThirdAuto = () => {
     stopThirdAuto();
-    const items = thirdSectionData[activeThirdTab].items;
-    const idx = activeThirdItem % items.length;
 
-    // прогресс-заливка активного пункта
+    const itemsLen = thirdSectionData[activeThirdTab].items.length;
+    if (!itemsLen) return;
+
+    // на всякий: очистить все полосы, оставить 0%
+    thirdItemFillRefs.current.forEach(el => { if (el) el.style.width = '0%'; });
+
+    const idx = activeThirdItem % itemsLen;
     const bar = thirdItemFillRefs.current[idx];
+
     if (bar) {
-      bar.style.width = '0%';
+      gsap.set(bar, { width: '0%' });
       thirdProgressTween.current = gsap.to(bar, {
         width: '100%',
         duration: THIRD_ITEM_DURATION,
-        ease: 'none'
+        ease: 'none',
+        onComplete: () => {
+          // по окончании заливки — показываем следующее фото
+          setActiveThirdItem(prev => (prev + 1) % itemsLen);
+        }
       });
     }
-
-    // авто-переход
-    thirdAutoTimer.current = window.setTimeout(() => {
-      const next = (idx + 1) % items.length;
-      setActiveThirdItem(next);
-    }, THIRD_ITEM_DURATION * 1000);
 
     // эффект появления фото в стиле киберпанк
     if (thirdHeroRef.current) {
@@ -185,14 +190,94 @@ export default function Portfolio() {
 
   const selectThirdItem = (idx: number) => {
     setActiveThirdItem(idx);
+    stopThirdAuto();
+    startThirdAuto();
   };
 
-    // Use the unified olympiad locations data
+  // Three.js beam marker functions
+  const ensureBeamGroup = (scene: THREE.Scene) => {
+    if (!beamGroupRef.current) {
+      beamGroupRef.current = new THREE.Group();
+      beamGroupRef.current.name = 'EducationBeams';
+      scene.add(beamGroupRef.current);
+    }
+    return beamGroupRef.current!;
+  };
+
+  const clearEducationBeams = () => {
+    if (!beamGroupRef.current) return;
+    gsap.killTweensOf(beamGroupRef.current.children);
+    beamGroupRef.current.children.forEach(c => (c as any).geometry?.dispose?.());
+    beamGroupRef.current.clear();
+  };
+
+  const addBeamMarker = (scene: THREE.Scene, [lat, lon]: [number, number]) => {
+    const group = ensureBeamGroup(scene);
+
+    const radius = 2; // радиус вашей Земли
+    const phi = (90 - lat) * Math.PI/180;
+    const theta = (lon + 180) * Math.PI/180;
+
+    const x = -(radius * Math.sin(phi) * Math.cos(theta));
+    const y =  (radius * Math.cos(phi));
+    const z =  (radius * Math.sin(phi) * Math.sin(theta));
+
+    // «луч из космоса»
+    const beamH = 3.2;
+    const geom = new THREE.CylinderGeometry(0.03, 0.08, beamH, 24, 1, true);
+    const mat  = new THREE.MeshBasicMaterial({ color: 0x00ff66, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+    const beam = new THREE.Mesh(geom, mat);
+    beam.position.set(x, y, z);
+    beam.lookAt(0,0,0);
+    beam.rotateX(Math.PI/2);
+
+    // свечение-дубликат
+    const glow = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.12, beamH*0.9, 24, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x00ff66, transparent: true, opacity: 0.25 })
+    );
+    beam.add(glow);
+
+    group.add(beam);
+
+    // анимация пульса
+    gsap.fromTo(beam.scale, { y: 0.1 }, { y: 1, duration: 1.2, ease: 'sine.inOut', yoyo: true, repeat: -1 });
+    gsap.fromTo(beam.material, { opacity: 0.3 }, { opacity: 0.9, duration: 1.2, ease: 'sine.inOut', yoyo: true, repeat: -1 });
+  };
+
+  // Test coordinates for debugging (temporarily use equator)
+  const addMarkerBeam = ([lat, lon]: [number, number]) => {
+    // Test with equator coordinates for visibility
+    const testLat = 0; // Equator
+    const testLon = 0; // Prime meridian
+    console.log(`Testing marker beam at equator: ${testLat}, ${testLon} (original: ${lat}, ${lon})`);
+    // TODO: Call addBeamMarker when scene is available
+  };
+
+  // Use the unified olympiad locations data
 
       // refs to objects that need to be accessed from UI handlers
     const globeGroupRef = useRef<THREE.Group | null>(null);
     const markerRefs = useRef<THREE.Mesh[]>([]);
     const isAutoRotateRef = useRef(true);
+    
+    // Camera management refs
+    const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+    const controlsRef = useRef<any | null>(null); // if using OrbitControls
+    const initialCamPos = useRef<THREE.Vector3 | null>(null);
+    const initialCamQuat = useRef<THREE.Quaternion | null>(null);
+    const initialControlsTarget = useRef<THREE.Vector3 | null>(null);
+
+  // Store initial camera position after mount
+  useEffect(() => {
+    if (!cameraRef.current) return;
+    // Save starting pose
+    initialCamPos.current = cameraRef.current.position.clone();
+    initialCamQuat.current = cameraRef.current.quaternion.clone();
+    if (controlsRef.current?.target) {
+      initialControlsTarget.current = controlsRef.current.target.clone();
+    }
+  }, []);
 
   // keep activeIndexRef in sync with React state and trigger focus when changed while in details
   useEffect(() => {
@@ -240,6 +325,7 @@ export default function Portfolio() {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 0, 6);
+    cameraRef.current = camera; // Store camera reference
     
 
 
@@ -358,9 +444,11 @@ export default function Portfolio() {
       depthWrite: true,
     });
     const bgCircle = new THREE.Mesh(circleGeo, circleMat);
-    // Поставь КРУГ ЗА Землёй и сместить влево
     bgCircle.position.set(-2, 0, -0.5);
-    bgCircle.scale.setScalar(0.001); // скрыт в начале
+
+    // сразу растягиваем по viewport
+    bgCircle.scale.setScalar(fitCircleToViewport());
+    bgCircle.material.opacity = 0; // скрыт в начале
     scene.add(bgCircle);
 
     // Установи порядок рендера, чтобы звёзды были сзади круга, а Земля спереди
@@ -570,10 +658,14 @@ export default function Portfolio() {
       
       // Add subtle glow effect to Earth only when not in second section
       if (!inSecondSection) {
-        gsap.to(earthMat, {
-          emissive: new THREE.Color(0x001122),
-          duration: 0.5,
-          ease: "power2.out"
+        gsap.to(emissiveProxy.current, {
+          value: 0x000000,
+          opacity: 1,
+          duration: 0.01,
+          ease: "power2.out",
+          onUpdate: () => {
+            earthMat.emissive.set(emissiveProxy.current.value);
+          }
         });
       }
     };
@@ -586,10 +678,13 @@ export default function Portfolio() {
       
       // Remove glow effect only when not in second section
       if (!inSecondSection) {
-        gsap.to(earthMat, {
-          emissive: new THREE.Color(0x000000),
+        gsap.to(emissiveProxy.current, {
+          value: 0x000000,
           duration: 0.5,
-          ease: "power2.out"
+          ease: "power2.out",
+          onUpdate: () => {
+            earthMat.emissive.set(emissiveProxy.current.value);
+          }
         });
       }
     };
@@ -600,55 +695,103 @@ export default function Portfolio() {
     mount.addEventListener("pointerenter", onPointerEnter);
     mount.addEventListener("pointerleave", onPointerLeave);
 
-    // ScrollTrigger timeline (hero -> details)
-    const tl = gsap.timeline({
+    // 1. Создаем единую временную шкалу, которая привязана к скроллу всего контента
+    const timeline = gsap.timeline({
       scrollTrigger: {
         trigger: ".page",
         start: "top top",
-        end: "+=350%",
-        scrub: 1.2,
-        anticipatePin: 1,
-        onUpdate(self) {
-          const inDetailsNow = self.progress >= 0.5 && self.progress < 0.75;
-          if (inDetailsNow !== inDetailsRef.current) {
-            setInDetails(inDetailsNow);
-            inDetailsRef.current = inDetailsNow;
-            // Keep auto-rotate enabled, but control it per section
-            isAutoRotateRef.current = true;
-
-            if (inDetailsNow) {
-              // краткая блокировка скролла при входе в details
-              const lockHandler = (e: Event) => { e.preventDefault(); };
-              window.addEventListener('wheel', lockHandler, { passive: false });
-              window.addEventListener('touchmove', lockHandler, { passive: false });
-              setTimeout(() => {
-                window.removeEventListener('wheel', lockHandler as any);
-                window.removeEventListener('touchmove', lockHandler as any);
-              }, 700);
-
-              const idx = activeIndexRef.current;
-              markers.forEach((m, i) => (m.visible = i === idx));
-              blinkTweens.forEach((t, i) => (i === idx ? t.play() : t.pause()));
-              if (focusOnRef.current) focusOnRef.current(idx);
-            } else {
-              markers.forEach((m) => (m.visible = false));
-              blinkTweens.forEach((t) => t.pause());
-              sprites.forEach((s) => (s.visible = false));
-              spriteMats.forEach((sm) => { if (sm) sm.opacity = 0; });
-              if (!inDetailsNow) {
-                gsap.to(globeGroup.position, { x: 0, y: 0, z: 0, duration: 1.2, ease: 'power2.out' });
-                gsap.to(globeGroup.scale, { x: 0.9, y: 0.9, z: 0.9, duration: 1.2, ease: 'power2.out' });
-                gsap.to(globeGroup.rotation, { x: 0, y: 0, z: 0, duration: 1.2, ease: 'power2.out' });
-                gsap.to(camera.position, { x: 0, y: 0, z: 6, duration: 1.2, ease: 'power2.out' });
-                gsap.to(globeGroup.quaternion, { _dummy: 1, duration: 0, onUpdate: () => globeGroup.quaternion.identity() });
-              }
-            }
-          }
-        },
+        end: "bottom bottom",
+        scrub: 1.2, // Привязываем анимацию к скроллу. 1.2 - небольшая инерция.
       },
     });
 
-    // Track second section (details) visibility to reliably show the panel and markers
+    // 2. Определяем анимации для каждой секции
+    // Каждая анимация будет плавно перетекать в следующую по мере скролла
+
+    // Анимация для секции "details" (вторая секция)
+    timeline.to(
+      globeGroup.rotation,
+      {
+        y: Math.PI * 2, // Поворот на 360 градусов
+        ease: "power2.inOut",
+      },
+      0 // Начинается с начала временной шкалы
+    );
+    timeline.to(
+      camera.position,
+      {
+        x: 2,
+        y: 0,
+        z: 5,
+        ease: "power2.inOut",
+      },
+      0 // Запускается одновременно с вращением
+    );
+
+    // Анимация для секции "third"
+    timeline.to(
+      globeGroup.rotation,
+      {
+        y: Math.PI * 4,
+        x: -Math.PI / 8,
+        ease: "power2.inOut",
+      },
+      ">" // Начинается, когда предыдущая анимация заканчивается
+    );
+    timeline.to(
+      camera.position,
+      {
+        x: 1.5,
+        y: 0.5,
+        z: 3,
+        ease: "power2.inOut",
+      },
+      "<" // Запускается одновременно с вращением
+    );
+
+    // Анимация для секции "fourth"
+    timeline.to(
+      globeGroup.rotation,
+      {
+        y: Math.PI * 6,
+        x: -Math.PI / 4,
+        ease: "power2.inOut",
+      },
+      ">"
+    );
+    timeline.to(
+      camera.position,
+      {
+        x: 0,
+        y: -5,
+        z: 18,
+        ease: "power2.inOut",
+      },
+      "<"
+    );
+
+    // Анимация для секции "section-5 contacts"
+    timeline.to(
+      globeGroup.rotation,
+      {
+        y: Math.PI * 8,
+        x: -Math.PI / 2,
+        ease: "power2.inOut",
+      },
+      ">"
+    );
+    timeline.to(
+      camera.position,
+      {
+        x: 0,
+        y: 1,
+        z: 2,
+        ease: "power2.inOut",
+      },
+      "<"
+    );
+
+    // Track second section (details) visibility to show panel and markers
     ScrollTrigger.create({
       trigger: '.details',
       start: 'top bottom',
@@ -681,7 +824,7 @@ export default function Portfolio() {
       },
       onLeave: () => {
         setInSecondSection(false);
-        // Hide all markers and reset when leaving second section
+        // Hide all markers when leaving second section
         markers.forEach((m) => (m.visible = false));
         blinkTweens.forEach((t) => t.pause());
         // Reset to first location
@@ -690,7 +833,7 @@ export default function Portfolio() {
       },
       onLeaveBack: () => {
         setInSecondSection(false);
-        // Hide all markers and reset when leaving second section backwards
+        // Hide all markers when leaving second section backwards
         markers.forEach((m) => (m.visible = false));
         blinkTweens.forEach((t) => t.pause());
         // Reset to first location
@@ -698,14 +841,6 @@ export default function Portfolio() {
         setActiveIndex(0);
       },
     });
-
-    // removed details-specific trigger (reverted to timeline onUpdate control)
-
-    // timeline transforms (hero -> details) - Earth moves to left side and scales up
-    tl.to(globeGroup.position, { x: -3, y: 0, z: 0, ease: "power2.inOut" }, 0);
-    tl.fromTo(globeGroup.scale, { x: 0.9, y: 0.9, z: 0.9 }, { x: 1.5, y: 1.5, z: 1.5, ease: "power2.inOut" }, 0);
-
-    // removed third section triggers (rollback)
 
     // Black curtain rise on entering third section
     const curtainEl = document.getElementById('black-curtain');
@@ -735,36 +870,16 @@ export default function Portfolio() {
       start: 'top center',
       end: 'bottom center',
       onEnter: () => {
-        gsap.to(bgCircle.scale, {
-          x: targetCircleScale,
-          y: targetCircleScale,
-          z: 1,
-          duration: prefersReduced ? 0 : 1.1,
-          ease: 'power2.out'
-        });
+        gsap.to(bgCircle.material, { opacity: 1, duration: 0.6, ease: 'power2.out', overwrite: true });
       },
       onEnterBack: () => {
-        gsap.to(bgCircle.scale, {
-          x: targetCircleScale,
-          y: targetCircleScale,
-          z: 1,
-          duration: prefersReduced ? 0 : 1.1,
-          ease: 'power2.out'
-        });
+        gsap.to(bgCircle.material, { opacity: 1, duration: 0.6, ease: 'power2.out', overwrite: true });
       },
       onLeave: () => {
-        gsap.to(bgCircle.scale, {
-          x: 0.001, y: 0.001, z: 1,
-          duration: prefersReduced ? 0 : 0.9,
-          ease: 'power2.in'
-        });
+        gsap.to(bgCircle.material, { opacity: 0, duration: 0.6, ease: 'power2.in', overwrite: true });
       },
       onLeaveBack: () => {
-        gsap.to(bgCircle.scale, {
-          x: 0.001, y: 0.001, z: 1,
-          duration: prefersReduced ? 0 : 0.9,
-          ease: 'power2.in'
-        });
+        gsap.to(bgCircle.material, { opacity: 0, duration: 0.6, ease: 'power2.in', overwrite: true });
       }
     });
 
@@ -778,80 +893,25 @@ export default function Portfolio() {
       onLeaveBack: () => setInThird(false),
     });
 
-    // Fourth section globe positioning with automatic camera animation
-    let cameraAnimation: (() => void) | null = null;
-    
+    // Simplified fourth section state management
     ScrollTrigger.create({
       trigger: '.fourth',
-      start: 'top center',
-      end: 'bottom top',
+      start: 'top 70%',
+      end: 'bottom 30%',
       onEnter: () => {
         setInFourthSection(true);
-        // Move globe to upper part of screen with smaller size
-        gsap.to(globeGroup.position, { x: 0, y: 1.5, z: 0, duration: 1, ease: 'power2.out' });
-        gsap.to(globeGroup.scale, { x: 0.7, y: 0.7, z: 0.7, duration: 1, ease: 'power2.out' });
-        
-        // Start automatic camera animation around Earth
-        let angle = 0;
-        const radius = 8;
-        const animateCamera = () => {
-          angle += 0.01;
-          camera.position.x = Math.cos(angle) * radius;
-          camera.position.z = Math.sin(angle) * radius;
-          camera.position.y = Math.sin(angle * 0.5) * 2;
-          camera.lookAt(globeGroup.position);
-        };
-        
-        cameraAnimation = animateCamera;
-        gsap.ticker.add(cameraAnimation);
-        
         isAutoRotateRef.current = true;
-        // Show markers in fourth section too
         markers.forEach((m, i) => (m.visible = i === activeIndexRef.current));
         blinkTweens.forEach((t, i) => (i === activeIndexRef.current ? t.play() : t.pause()));
-        sprites.forEach((s) => (s.visible = false));
-        spriteMats.forEach((sm) => { if (sm) sm.opacity = 0; });
       },
       onEnterBack: () => {
         setInFourthSection(true);
-        gsap.to(globeGroup.position, { x: 0, y: 1.5, z: 0, duration: 1, ease: 'power2.out' });
-        gsap.to(globeGroup.scale, { x: 0.7, y: 0.7, z: 0.7, duration: 1, ease: 'power2.out' });
-        
-        // Restart camera animation
-        if (cameraAnimation) gsap.ticker.remove(cameraAnimation);
-        let angle = 0;
-        const radius = 8;
-        const animateCamera = () => {
-          angle += 0.01;
-          camera.position.x = Math.cos(angle) * radius;
-          camera.position.z = Math.sin(angle) * radius;
-          camera.position.y = Math.sin(angle * 0.5) * 2;
-          camera.lookAt(globeGroup.position);
-        };
-        
-        cameraAnimation = animateCamera;
-        gsap.ticker.add(cameraAnimation);
-        
         isAutoRotateRef.current = true;
         markers.forEach((m, i) => (m.visible = i === activeIndexRef.current));
         blinkTweens.forEach((t, i) => (i === activeIndexRef.current ? t.play() : t.pause()));
-        sprites.forEach((s) => (s.visible = false));
-        spriteMats.forEach((sm) => { if (sm) sm.opacity = 0; });
       },
-      onLeave: () => {
-        setInFourthSection(false);
-        if (cameraAnimation) {
-          gsap.ticker.remove(cameraAnimation);
-          cameraAnimation = null;
-        }
-      },
-      onLeaveBack: () => {
-        setInFourthSection(false);
-        if (cameraAnimation) {
-          gsap.ticker.remove(cameraAnimation);
-          cameraAnimation = null;
-        }
-      }
+      onLeave: () => setInFourthSection(false),
+      onLeaveBack: () => setInFourthSection(false),
     });
 
     // После инициализации всех триггеров обновляем расчёт позиций,
@@ -930,6 +990,56 @@ export default function Portfolio() {
     // expose focusOn to outer scope via ref
     focusOnRef.current = focusOn;
 
+    // Camera tween helpers
+    const killCameraTweens = () => {
+      if (!cameraRef.current) return;
+      gsap.killTweensOf(cameraRef.current.position);
+      gsap.killTweensOf(cameraRef.current.quaternion as any);
+    };
+
+    const tweenCameraTo = (
+      pos: THREE.Vector3,
+      lookAt?: THREE.Vector3,
+      duration = 1.4
+    ) => {
+      if (!cameraRef.current) return;
+      killCameraTweens();
+
+      // позиция
+      gsap.to(cameraRef.current.position, {
+        x: pos.x, y: pos.y, z: pos.z,
+        duration, ease: "power2.inOut",
+        onUpdate: () => { controlsRef.current?.update?.(); }
+      });
+
+      // ориентация (если есть цель — смотрим на неё)
+      if (lookAt) {
+        // анимируем поворот через промежуточный кватернион
+        const cam = cameraRef.current;
+        const startQ = cam.quaternion.clone();
+        cam.lookAt(lookAt);
+        const endQ = cam.quaternion.clone();
+        cam.quaternion.copy(startQ); // вернуть назад перед анимацией
+
+        gsap.to({ t: 0 }, {
+          t: 1, duration, ease: "power2.inOut",
+          onUpdate(self) {
+            cam.quaternion.slerpQuaternions(startQ, endQ, self.progress());
+            controlsRef.current?.update?.();
+          }
+        });
+
+        // если OrbitControls — синхронизируем target
+        if (controlsRef.current?.target) {
+          gsap.to(controlsRef.current.target, {
+            x: lookAt.x, y: lookAt.y, z: lookAt.z,
+            duration, ease: "power2.inOut",
+            onUpdate: () => controlsRef.current?.update?.()
+          });
+        }
+      }
+    };
+
     // Data is already available in olympiadLocations constant
 
     // ensure hidden initially
@@ -950,17 +1060,24 @@ export default function Portfolio() {
     };
     window.addEventListener("mousemove", onMouseMove);
 
-    // Animation loop - ensure Earth always renders
+    // Earth rotation speed constants
+    const EARTH_ROT_SPEED = 0.0007; // slower rotation (was ~0.002)
+    
+    // Animation loop with GSAP ticker
     const animate = () => {
-      // Only rotate Earth when NOT in second section (static in details)
-      if (!inSecondSection) {
-        globeGroup.rotation.y += hoverRotationSpeed;
-      }
-      
       // avoid redundant renders when tab inactive
       if (document.hidden) {
-        rafRef.current = requestAnimationFrame(animate);
         return;
+      }
+
+      // Only rotate Earth when NOT in second section (static in details)
+      if (!inSecondSection) {
+        // Slower automatic rotation, only in fourth section or when appropriate
+        if (inFourthSection) {
+          globeGroup.rotation.y += EARTH_ROT_SPEED;
+        } else {
+          globeGroup.rotation.y += hoverRotationSpeed;
+        }
       }
       
       // Add subtle star movement for parallax effect
@@ -968,8 +1085,6 @@ export default function Portfolio() {
         stars.rotation.y += 0.0002;
         stars.rotation.x += 0.0001;
       }
-      
-
 
       // hover checks only in details mode
       if (inDetailsRef.current) {
@@ -995,9 +1110,10 @@ export default function Portfolio() {
       }
 
       renderer.render(scene, camera);
-      rafRef.current = requestAnimationFrame(animate);
     };
-    animate();
+
+    // Register animation with GSAP ticker for better synchronization
+    gsap.ticker.add(animate);
 
     // Resize
     const onResize = () => {
@@ -1020,8 +1136,8 @@ export default function Portfolio() {
 
     // Cleanup
     return () => {
+      gsap.ticker.remove(animate);
       window.removeEventListener("mousemove", onMouseMove);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       window.removeEventListener("resize", onResize);
       // removed obsolete snap handlers (no longer used)
       mount.removeEventListener("pointerdown", onPointerDown);
@@ -1030,9 +1146,15 @@ export default function Portfolio() {
       mount.removeEventListener("pointerenter", onPointerEnter);
       mount.removeEventListener("pointerleave", onPointerLeave);
 
+      // Kill camera tweens and reset position
+      killCameraTweens();
+      if (cameraRef.current && initialCamPos.current && initialCamQuat.current) {
+        cameraRef.current.position.copy(initialCamPos.current);
+        cameraRef.current.quaternion.copy(initialCamQuat.current);
+        controlsRef.current?.update?.();
+      }
+
       try {
-        tl.kill();
-        if (cameraAnimation) gsap.ticker.remove(cameraAnimation);
         ScrollTrigger.getAll().forEach((s) => s.kill());
       } catch {}
       blinkTweens.forEach((t) => t.kill());
@@ -1149,11 +1271,17 @@ export default function Portfolio() {
 
   // Third section auto-progression
   useEffect(() => {
-    if (!inThird) return;
-
+    if (!inThird) { stopThirdAuto(); return; }
     startThirdAuto();
-    return () => stopThirdAuto();
-  }, [inThird, activeThirdTab]);
+    return stopThirdAuto;
+    // включаем item в зависимости, чтобы каждый новый пункт заново запускал заливку
+  }, [inThird, activeThirdTab, activeThirdItem]);
+
+  // На смене вкладки — подчистить рефы
+  useEffect(() => {
+    // при смене вкладки обнулим полосы (визуально) до следующего запуска
+    thirdItemFillRefs.current.forEach(el => { if (el) el.style.width = '0%'; });
+  }, [activeThirdTab]);
 
   // Second section typewriter effect
   useEffect(() => {
@@ -1360,7 +1488,7 @@ export default function Portfolio() {
                   fontFamily: "'Exo', sans-serif"
                 }}
               >
-                Pupil at Bowdoin College — serial olympiad winner, geographer.
+                Undergraduate researcher at Bowdoin College — serial olympiad winner, geographer.
               </p>
             )}
             
@@ -1616,7 +1744,7 @@ export default function Portfolio() {
             gridTemplateColumns: "1fr minmax(0, 620px)",
             alignItems: "center",
             padding: "4rem 5vw",
-            fontFamily: "'Exo', sans-serif",
+            fontFamily: "'Exo', roboto",
             color: "#fff",
             pointerEvents: "auto" // важно: кнопки кликаются
           }}
@@ -1688,25 +1816,181 @@ export default function Portfolio() {
             </div>
 
             {/* Кликабельные пункты с синхронизацией */}
-            <div className="third-list" style={{ marginTop: "1.25rem", display: "grid", gap: "10px", backgroundColor: "#111111", fontFamily: "'Exo', monospace" }}>
+            <div className="third-list" style={{ marginTop: "1.25rem", display: "grid", gap: 10, backgroundColor: "black" }}>
               {thirdSectionData[activeThirdTab].items.map((it, idx) => (
                 <button
+                  type="button"
                   key={idx}
                   className={`third-item ${idx === activeThirdItem ? 'is-active' : ''}`}
                   onClick={() => selectThirdItem(idx)}
                 >
-                  <span ref={(el) => setThirdItemFillRef(el, idx)} className="fill" />
+                  <div ref={(el) => setThirdItemFillRef(el, idx)} className="fill" />
                   <span className="idx">{String(idx + 1).padStart(2, '0')}</span>
                   <span className="txt">{it.text}</span>
+
+                  {it.link && (
+                    <a 
+                      className="item-link" 
+                      href={it.link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      aria-label="Open project link"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42L17.59 5H14V3z"/>
+                        <path fill="currentColor" d="M5 5h5V3H3v7h2V5zm0 14v-5H3v7h7v-2H5zm14 0h-5v2h7v-7h-2v5z"/>
+                      </svg>
+                    </a>
+                  )}
                 </button>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="fourth" style={{ height: "100vh", position: "relative" }}>
+        <section className="fourth" style={{ height: "100vh", position: "relative", marginTop: "50rem", marginBottom: "50rem" }}>
           <FourthSection />
         </section>
+
+        <section className="section-5 contacts" style={{ height: "100vh" }}>
+          <div className="contacts-container">
+            <h2 className="contacts-title">Social Media</h2>
+            <div className="contacts-buttons">
+              <a href="https://linkedin.com/in/sanzharkhamitov" target="_blank" rel="noopener noreferrer" className="cyber-btn"><FaLinkedin /></a>
+              <a href="https://t.me/sanzharkhamitov" target="_blank" rel="noopener noreferrer" className="cyber-btn"><FaTelegram /></a>
+              <a href="https://instagram.com/sanzharkhamitov" target="_blank" rel="noopener noreferrer" className="cyber-btn"><FaInstagram /></a>
+            </div>
+          </div>
+
+          {/* Instagram feed block */}
+          <div className="instagram-block">
+            <div className="insta-left">
+              <img src="/inst/ava.jpg" alt="profile" className="insta-avatar" />
+              <h3>@crovetonite</h3>
+            </div>
+            <div className="insta-grid">
+              <a href="https://www.instagram.com/p/DJNH2TwxVdV/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA==" target="_blank" rel="noopener noreferrer">
+                <img src="/inst/1.png" alt="post" />
+              </a>
+              <a href="https://www.instagram.com/crovetonite/p/DGnVGMfx0DI/" target="_blank" rel="noopener noreferrer">
+                <img src="/inst/2.png" alt="post" />
+              </a>
+              <a href="https://www.instagram.com/crovetonite/p/DE-0Sr_xw8p/" target="_blank" rel="noopener noreferrer">
+                <img src="/inst/3.png" alt="post" />
+              </a>
+              <a href="https://www.instagram.com/crovetonite/p/DC95FjsRYCD/" target="_blank" rel="noopener noreferrer">
+                <img src="/inst/4.png" alt="post" />
+              </a>
+              <a href="https://www.instagram.com/crovetonite/p/CfbEjNbLhkN/" target="_blank" rel="noopener noreferrer">
+                <img src="/inst/5.png" alt="post" />
+              </a>
+              <a href="https://www.instagram.com/crovetonite/p/DA7BVSLRKYK/" target="_blank" rel="noopener noreferrer">
+                <img src="/inst/6.png" alt="post" />
+              </a>
+            </div>
+            <div className="insta-info">
+              <b>Sanzhar Khamitov</b><br />
+              Bowdoin College<br />
+              Brunswick, Maine<br /><br />
+              <a href="mailto:skhamitov@bowdoin.edu">skhamitov@bowdoin.edu</a>
+            </div>
+          </div>
+        </section>
+
+        {/* Powered by DevNova Footer */}
+        <footer style={{
+          width: '100%',
+          background: '#000',
+          color: '#fff',
+          padding: '1.5rem 0',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+          overflow: 'hidden',
+          zIndex: 20,
+          pointerEvents: 'auto'
+        }}>
+          {/* Фоновые линии для киберпанк вайба */}
+          <div style={{
+            position: 'absolute',
+            inset: '0',
+            opacity: '0.1'
+          }}>
+            <div style={{
+              height: '1px',
+              background: 'linear-gradient(to right, white, #6b7280, transparent)',
+              width: '100%',
+              position: 'absolute',
+              top: '33%',
+              animation: 'pulse 2s infinite'
+            }}></div>
+            <div style={{
+              height: '1px',
+              background: 'linear-gradient(to right, transparent, #6b7280, white)',
+              width: '100%',
+              position: 'absolute',
+              top: '66%',
+              animation: 'pulse 2s infinite'
+            }}></div>
+          </div>
+
+          {/* Контент */}
+          <div className="powered-by-content" style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            zIndex: '10',
+            animation: 'fadeInUp 0.8s ease-out'
+          }}>
+            {/* Логотип DevNova */}
+            <a 
+              href="https://devnova.eu" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="devnova-logo-link"
+              style={{
+                transition: 'transform 0.3s ease',
+                pointerEvents: 'auto',
+                zIndex: 100,
+                position: 'relative'
+              }}
+            >
+              <div className="hover-scale" style={{
+                padding: '0.5rem',
+                borderRadius: '50%',
+                transition: 'transform 0.3s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <img 
+                  src="/devnova.png" 
+                  alt="DevNova" 
+                  style={{
+                    width: '4.5rem',
+                    height: '4.5rem',
+                    objectFit: 'contain'
+                  }}
+                />
+              </div>
+            </a>
+
+            {/* Текст */}
+            <p className="powered-by-text" style={{
+              fontSize: '0.875rem',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: '#d1d5db',
+              transition: 'color 0.3s ease',
+              fontFamily: "'Share Tech Mono', monospace",
+              margin: 0
+            }}>
+              Powered by <span style={{color: '#fff', fontWeight: 'bold'}}>DevNova</span>
+            </p>
+          </div>
+        </footer>
         
       </div>
 
@@ -1822,6 +2106,72 @@ export default function Portfolio() {
           @keyframes blink {
             0%, 50% { opacity: 1; }
             50.01%, 100% { opacity: 0; }
+          }
+          .third-item {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 8px;
+            background: transparent;
+            color: #eaeaea;
+            border: 1px solid rgba(255,255,255,0.18);
+            padding: 14px 16px;
+            text-align: left;
+            overflow: hidden;
+            transition: border-color .2s ease, transform .15s ease, background-color .2s ease;
+          }
+
+          .third-item .idx {
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: .08em;
+            margin-bottom: 4px;
+            color: #fff;
+          }
+
+          .third-item .txt {
+            font-size: 15px;
+            line-height: 1.55;
+            margin-right: 28px;
+          }
+
+          .third-item .fill { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            height: 100%; 
+            width: 0%; 
+            background: rgba(255,255,255,.07); 
+            pointer-events: none;
+          }
+
+          .third-item.is-active { 
+            border-color: #fff; 
+            box-shadow: inset 0 0 0 1px #fff;
+          }
+
+          .item-link {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: inline-flex;
+            width: 26px; 
+            height: 26px;
+            border: 1px solid rgba(255,255,255,.35);
+            border-radius: 999px;
+            align-items: center; 
+            justify-content: center;
+            color: #fff;
+            opacity: .75;
+            transition: transform .15s ease, opacity .2s ease, border-color .2s ease;
+          }
+          
+          .third-item:hover .item-link {
+            opacity: 1;
+            border-color: #fff;
+            transform: translateY(-1px);
           }
 
           /* hero image frame */
@@ -2170,6 +2520,207 @@ z-index: 0 !important;
 pointer-events: auto !important;
 }
 
+/* Section 5 - Contacts */
+.section-5.contacts {
+  background: rgba(10, 10, 10, 0.3); /* прозрачный черный */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4rem 2rem;
+  pointer-events: auto;
+  position: relative;
+  z-index: 10;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.contacts-container {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding: 2rem;
+}
+
+.contacts-title {
+  font-size: 32px;
+  margin-bottom: 2rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #fff;
+  font-weight: 600;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.contacts-buttons {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 3rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.cyber-btn {
+  width: 60px;
+  height: 60px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  text-decoration: none;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.cyber-btn:hover {
+  background: #fff;
+  color: #0a0a0a;
+  transform: scale(1.1);
+  box-shadow: 0 0 20px rgba(255,255,255,0.5);
+}
+
+/* Instagram block */
+.instagram-block {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 2rem;
+  margin-top: 3rem;
+  width: 100%;
+  max-width: 1200px;
+}
+  
+.insta-left {
+  text-align: center;
+  margin-left: 4rem;
+}
+
+.insta-avatar {
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  margin-bottom: 1rem;
+  border: 2px solid #fff;
+  margin-left: 7rem;
+}
+
+.insta-left h3 {
+  color: #fff;
+  font-family: 'Share Tech Mono', monospace;
+  margin: 0;
+  margin-right: -1rem;
+  margin-left: 3rem;
+}
+
+.insta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  pointer-events: auto;
+  z-index: 50;
+  position: relative;
+}
+
+.insta-grid a {
+  display: block;
+  text-decoration: none;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: transform 0.3s ease;
+  pointer-events: auto;
+  z-index: 100;
+  position: relative;
+}
+
+.insta-grid a:hover {
+  transform: scale(1.05);
+}
+
+.insta-grid img {
+  width: 100%;
+  object-fit: cover;
+  aspect-ratio: 1 / 1;
+  border-radius: 4px;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.insta-info {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #ccc;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.insta-info a {
+  color: #fff;
+  text-decoration: none;
+}
+
+.insta-info a:hover {
+  text-decoration: underline;
+}
+
+/* Powered by DevNova Footer */
+.powered-by-content {
+  animation: fadeInUp 0.8s ease-out !important;
+}
+
+.devnova-logo-link {
+  transition: transform 0.3s ease !important;
+  pointer-events: auto !important;
+  z-index: 100 !important;
+  position: relative !important;
+}
+
+.hover-scale {
+  transition: transform 0.3s ease !important;
+}
+
+.devnova-logo-link:hover .hover-scale {
+  transform: scale(1.1) !important;
+}
+
+.devnova-logo-link:hover {
+  transform: translateY(-2px) !important;
+}
+
+.powered-by-text {
+  font-family: 'Share Tech Mono', monospace !important;
+  transition: color 0.3s ease !important;
+}
+
+.powered-by-text:hover {
+  color: #fff !important;
+}
+
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
 /* Mobile responsive grid */
 @media (max-width: 900px) {
 .details { 
@@ -2184,6 +2735,20 @@ margin: 0 auto 24px !important;
 }
 .details-title {
 font-size: 2rem !important;
+}
+
+.instagram-block {
+  grid-template-columns: 1fr !important;
+  text-align: center;
+}
+
+.contacts-buttons {
+  flex-direction: column;
+  align-items: center;
+}
+
+.cyber-btn {
+  width: 200px;
 }
 }
 `
